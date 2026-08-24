@@ -4,7 +4,7 @@ Trace is a project supervision and evidence platform for long-running assessed p
 
 It gives an Author and their assigned Reviewers a structured record of project expectations, milestone submissions, evidence, feedback, revisions, decisions, deliverables, and final approval. The resulting project history becomes a printable Process Portfolio.
 
-> **Status:** Planning complete; implementation has not started. Phase 1—application foundation, authentication, and project access—is next.
+> **Status:** Planning is complete and Phase 1 has started with the initial API foundation. Authentication, persistence, project access, and CI are still to be completed.
 
 ## Why Trace?
 
@@ -68,7 +68,7 @@ Trace is planned as a TypeScript and Express modular monolith backed by PostgreS
 
 Planned supporting infrastructure includes:
 
-- Prisma with reviewed SQL migrations where required;
+- `pg` with parameterised raw SQL and `node-pg-migrate` for version-controlled migrations;
 - Zod validation and an OpenAPI REST contract;
 - Argon2id password hashing;
 - opaque, database-backed browser sessions in secure HTTP-only cookies;
@@ -88,7 +88,7 @@ JWTs, microservices, Kubernetes, real-time chat, institution tenancy, AI assessm
 
 ## Documentation
 
-The authoritative product rules, architecture, application design, data model, security controls, testing strategy, infrastructure approach, and phased roadmap are documented in the [backend engineering plan](docs/backend-engineering-plan.md).
+The authoritative product rules, architecture, application design, data model, security controls, testing strategy, infrastructure approach, and phased roadmap are documented in the [backend engineering plan](apps/api/docs/backend-engineering-plan.md).
 
 ## Non-goals
 

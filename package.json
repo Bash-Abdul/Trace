@@ -1,0 +1,21 @@
+{
+  "name": "trace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @trace/api dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "format": "pnpm -r --if-present format",
+    "format:check": "pnpm -r --if-present format:check",
+    "test": "pnpm -r --if-present test",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "verify": "pnpm check && pnpm build"
+  }
+}

@@ -1,7 +1,7 @@
 # Trace Backend Engineering Plan
 
 Status: Approved target plan  
-Current phase: Pre-implementation; authentication design is selected and Phase 1 is next  
+Current phase: Phase 1 in progress; the initial TypeScript/Express API scaffold exists  
 Authority: This is the authoritative backend engineering plan for Trace
 
 ## How to use this plan
@@ -12,7 +12,7 @@ Build Trace as a TypeScript/Express modular monolith backed by PostgreSQL, with 
 
 Authentication is application-owned email/password authentication using Argon2id and opaque, database-backed sessions carried in secure HTTP-only cookies. Trace owns accounts, credentials, sessions, verification, reset, and revocation workflows; it does not use JWTs or an external authentication service/framework.
 
-Before Phase 1, no further product decision is required: the authentication method is now selected. Decide upload restrictions before Phase 3, and escalation timing and initiation before Phase 4. Timezone rules must precede deadline calculations. Deletion, retention, no-successor recovery, and measurable service targets can wait until before real users. Application implementation has not started; Phase 1 is next.
+The authentication method is selected and Phase 1 has started. Decide upload restrictions before Phase 3, and escalation timing and initiation before Phase 4. Timezone rules must precede deadline calculations. Deletion, retention, no-successor recovery, and measurable service targets can wait until before real users.
 
 ## 1. Product definition
 
@@ -236,7 +236,9 @@ PostgreSQL -------- private object storage (from Phase 3)
 durable scheduled runner / outbox processor
 ```
 
-Use a supported Node.js LTS release, TypeScript, Express, PostgreSQL, Prisma with reviewed SQL migrations for unsupported constraints, Zod boundary validation, REST JSON under `/api/v1`, OpenAPI as the integration contract, structured JSON logs, private S3-compatible object storage, and a transactional email provider.
+Use a supported Node.js LTS release, TypeScript, Express, PostgreSQL through `pg` and parameterised raw SQL, `node-pg-migrate` for version-controlled migrations, Zod boundary validation, REST JSON under `/api/v1`, OpenAPI as the integration contract, structured JSON logs, private S3-compatible object storage, and a transactional email provider.
+
+Raw SQL is an approved architectural choice. Keep it behind small typed database and repository boundaries, pass one `PoolClient` through each transaction, and make migrations the sole schema authority. This approach must preserve explicit transaction ownership, project scoping, parameterised values, predictable row-to-domain mapping, and integration tests against real PostgreSQL.
 
 A modular monolith keeps approval, version, access, notification, and transfer operations within reliable PostgreSQL transactions. No confirmed scale or ownership boundary justifies microservices. The scheduled runner uses the same release artifact and domain services; PostgreSQL job/outbox records remain its durable source of truth.
 
@@ -335,6 +337,8 @@ Principal tables:
 
 Database constraints enforce one accepted Author, one active main Reviewer, unique eligible succession positions, one logical submission per milestone, unique version numbers, same-project and same-milestone evidence mappings, one current draft, and exact reviewed versions. Use opaque public identifiers, optimistic `version` columns, server timestamps, and JSON only for bounded snapshots rather than primary relational structure.
 
+Access PostgreSQL through `pg` using parameterised raw SQL. Use `node-pg-migrate` for explicit, version-controlled schema changes, including partial unique indexes and constraints. Application startup must not apply migrations automatically.
+
 ## 17. API contract
 
 Use REST JSON under `/api/v1` with Zod validation and one authoritative OpenAPI contract.
@@ -352,6 +356,8 @@ Use cursor pagination for history collections; stable error codes with a correla
 Transactions cover registration token issuance, verification consumption, password reset and session revocation, project creation and role setup, invitation acceptance, external activation, proposal submission and approval, milestone version submission and review, major-change approval and application, succession order and transfer, final checklist and request, final approval and portfolio snapshot, and every material domain write with its audit and in-app notifications.
 
 Use optimistic versions for drafts and structure; row locks for activation, approval, and transfer; partial unique indexes for active role and token invariants; unique event-recipient notification keys; idempotency records; and `FOR UPDATE SKIP LOCKED` for outbox and escalation jobs. A Reviewer action fails if the actor loses active-main status before commit.
+
+Transaction helpers must acquire one `PoolClient`, issue `BEGIN`, pass that client to every participating repository operation, and reliably `COMMIT`, `ROLLBACK`, and release it. Code inside a transaction must not fall back to pool-level queries.
 
 ## 19. Uploads and object storage
 
@@ -396,6 +402,7 @@ Before real users, prepare and exercise deployment/rollback, database restore, o
 | Category | Decision | Reason or trigger |
 | --- | --- | --- |
 | **Required now** | TypeScript/Express modular monolith with PostgreSQL | Strong transactional domain without a justified service boundary |
+| **Required now** | `pg`, parameterised raw SQL, and `node-pg-migrate` | Direct control over transactions, locking, constraints, and migration SQL |
 | **Required now** | Application-owned email/password authentication | Confirmed ownership requirement for accounts and workflows |
 | **Required now** | Argon2id and opaque database sessions | Trusted password hashing plus immediate revocation for a browser MVP |
 | **Required now** | Project-scoped role enforcement | Primary trust boundary |
@@ -429,7 +436,7 @@ Before real users, prepare and exercise deployment/rollback, database restore, o
 
 ### Phase 0 — Planning baseline (complete)
 
-The product workflow, architecture, and authentication method are selected and documented in this plan. Application implementation has not started. Phase 1 is next.
+The product workflow, architecture, authentication method, and SQL-first persistence approach are selected and documented in this plan. Phase 1 implementation has started.
 
 Decisions are resolved just before the work that depends on them rather than front-loaded unnecessarily:
 
@@ -440,7 +447,7 @@ Decisions are resolved just before the work that depends on them rather than fro
 
 ### Phase 1 — Foundation, authentication, and access boundary
 
-Build the TypeScript/Express foundation, database migrations, full application-owned authentication workflow, project creation, creator provenance, permanent Author role assignment, memberships, invitations, project-scoped authorisation, audit/logging foundation, CI, health endpoints, and the storage interface/configuration boundary only.
+Build the TypeScript/Express foundation, `pg` database layer, `node-pg-migrate` migrations, full application-owned authentication workflow, project creation, creator provenance, permanent Author role assignment, memberships, invitations, project-scoped authorisation, audit/logging foundation, CI, health endpoints, and the storage interface/configuration boundary only.
 
 Complete when authentication security tests pass, invitation acceptance is atomic, cross-project access tests pass, Author replacement is impossible, role uniqueness survives concurrency, and no upload or object-storage implementation has been introduced.
 
@@ -501,6 +508,8 @@ Principal engineering risks are semantic misclassification of project changes, m
 A later review should verify in code, migrations, tests, CI, deployment, and operations that:
 
 - authentication follows the selected Argon2id and opaque-session design without custom cryptographic algorithms;
+- raw SQL is parameterised, project-scoped, and executed through explicit pool or transaction-client boundaries;
+- `node-pg-migrate` migrations are the version-controlled schema authority and verify clean-database setup;
 - raw credentials and tokens never enter persistence or logs;
 - CSRF, session rotation, expiration, and revocation are enforced;
 - project creation and permanent authorship are distinct concepts;
@@ -515,4 +524,3 @@ A later review should verify in code, migrations, tests, CI, deployment, and ope
 - portfolio rendering respects snapshot and file-access rules;
 - object storage was introduced only with an approved upload policy;
 - migrations, restore, deployment, and operational recovery were exercised rather than merely documented.
-
