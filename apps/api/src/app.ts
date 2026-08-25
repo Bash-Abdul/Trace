@@ -1,12 +1,25 @@
 import express from 'express';
 
-export const app = express();
+import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
+import { requestLogger } from './middleware/request-logger.js';
 
-app.use(express.json());
+export function createApp() {
+  const app = express();
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({
-    message: 'All good',
-    status: 'ok',
+  app.disable('x-powered-by');
+
+  app.use(requestLogger);
+  app.use(express.json());
+
+  app.get('/health', (_req, res) => {
+    res.status(200).json({
+      message: 'All good',
+      status: 'ok',
+    });
   });
-});
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+}
