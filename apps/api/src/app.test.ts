@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from './app.js';
 
@@ -59,5 +59,47 @@ describe('application HTTP foundation', () => {
         requestId,
       },
     });
+  });
+});
+
+describe('GET /ready', () => {
+  it('reports ready when PostgreSQL responds', async () => {
+    // This fake succeeds without contacting the real Docker database.
+    const databaseCheck = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+    const readinessApp = createApp({
+      checkDatabaseConnection: databaseCheck,
+    });
+
+    const response = await request(readinessApp).get('/ready');
+    const body: unknown = response.body;
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      message: 'All good',
+      status: 'ready',
+    });
+    expect(databaseCheck).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports unavailable when PostgreSQL does not respond', async () => {
+    // This fake simulates a database failure in a controlled test.
+    const databaseCheck = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValue(new Error('PostgreSQL unavailable'));
+
+    const readinessApp = createApp({
+      checkDatabaseConnection: databaseCheck,
+    });
+
+    const response = await request(readinessApp).get('/ready');
+    const body: unknown = response.body;
+
+    expect(response.status).toBe(503);
+    expect(body).toEqual({
+      message: 'Service Unavailable',
+      status: 'not_ready',
+    });
+    expect(databaseCheck).toHaveBeenCalledTimes(1);
   });
 });
