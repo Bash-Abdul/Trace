@@ -21,6 +21,8 @@ export const environmentSchema = z.object({
   DATABASE_URL: databaseUrlSchema,
 
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
+
+  TEST_DATABASE_URL: databaseUrlSchema.optional(),
 });
 
 export type Environment = Readonly<z.infer<typeof environmentSchema>>;

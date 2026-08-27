@@ -15,7 +15,11 @@
     "format": "pnpm -r --if-present format",
     "format:check": "pnpm -r --if-present format:check",
     "test": "pnpm -r --if-present test",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
-    "verify": "pnpm check && pnpm build"
+    "test:integration": "pnpm -r --if-present test:integration",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration",
+    "verify": "pnpm check && pnpm build",
+    "db:migration:create": "pnpm --filter @trace/api db:migration:create",
+    "db:migrate": "pnpm --filter @trace/api db:migrate",
+    "db:rollback": "pnpm --filter @trace/api db:rollback"
   }
 }
