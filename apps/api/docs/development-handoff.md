@@ -6,7 +6,7 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 
 - Phase 0: complete
 - Phase 1: in progress
-- Current task: authentication security primitives, followed by registration
+- Current task: complete registration email delivery through the PostgreSQL outbox
 
 ## Completed
 
@@ -22,15 +22,19 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 - migration apply, rollback, reapply, and clean CI migration checks
 - isolated PostgreSQL integration database and transaction tests
 - GitHub Actions quality, database, dependency, and secret checks
-- Argon2 dependency and authentication crypto module started
-- root `pnpm verify` command passing
+- Argon2id password hashing and opaque-token crypto helpers
+- reusable Zod validation middleware for bodies, parameters, and query strings
+- registration schema, repository, transactional service, controller, and route
+- registration endpoint mounted at `POST /api/v1/auth/register`
+- registration integration coverage for validation, normalisation, protected persistence, and duplicates
+- root `pnpm verify` command
 
 ## Next in Phase 1
 
-1. Finish and verify the authentication crypto primitives.
-2. Implement registration as one complete feature slice.
-3. Add proportionate registration tests after the feature works.
-4. Implement email verification and its feature tests.
+1. Add the PostgreSQL `outbox_jobs` migration and repository operations.
+2. Encrypt secret email-job payload data and enqueue verification email in the registration transaction.
+3. Add the scheduled outbox runner and an email-provider interface, then select the provider.
+4. Implement email verification and complete registration/verification feature tests.
 5. Implement login, opaque sessions, logout, and their feature tests.
 6. Implement password reset and session revocation.
 7. Add CSRF protection, authentication rate limiting, and security audit events.
@@ -56,3 +60,4 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 - Implement a coherent feature first, then add the smallest risk-based test set before calling it complete.
 - Do not create tests for trivial implementation details or library behavior.
 - Do not introduce later-phase infrastructure early.
+- Use PostgreSQL as the MVP durable job queue; add no external queue without a measured trigger.

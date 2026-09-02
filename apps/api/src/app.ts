@@ -3,6 +3,7 @@ import express from 'express';
 import { checkDatabaseConnection } from './config/db.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { registerRouter } from './modules/auth/register/register.routes.js';
 
 interface AppDependencies {
   // Allows tests to replace the real PostgreSQL check with controlled behavior.
@@ -53,6 +54,8 @@ export function createApp(dependencies: AppDependencies = defaultDependencies) {
       });
     }
   });
+
+  app.use('/api/v1/auth', registerRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
