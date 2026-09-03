@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { parseEnvironment } from './env.js';
 
+const validOutboxEncryptionKey = Buffer.alloc(32, 1).toString('base64');
+
 describe('parseEnvironment', () => {
   it('parses valid configuration', () => {
     const environment = parseEnvironment({
@@ -9,6 +11,7 @@ describe('parseEnvironment', () => {
       PORT: '4000',
       DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace_test',
       LOG_LEVEL: 'warn',
+      OUTBOX_ENCRYPTION_KEY: validOutboxEncryptionKey,
     });
 
     expect(environment).toEqual({
@@ -16,6 +19,7 @@ describe('parseEnvironment', () => {
       PORT: 4000,
       DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace_test',
       LOG_LEVEL: 'warn',
+      OUTBOX_ENCRYPTION_KEY: validOutboxEncryptionKey,
     });
 
     expect(Object.isFrozen(environment)).toBe(true);
@@ -24,6 +28,7 @@ describe('parseEnvironment', () => {
   it('applies safe development defaults', () => {
     const environment = parseEnvironment({
       DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace',
+      OUTBOX_ENCRYPTION_KEY: validOutboxEncryptionKey,
     });
 
     expect(environment.NODE_ENV).toBe('development');
@@ -50,5 +55,14 @@ describe('parseEnvironment', () => {
         PORT: '70000',
       }),
     ).toThrowError(/PORT/);
+  });
+
+  it('rejects an invalid outbox encryption key', () => {
+    expect(() =>
+      parseEnvironment({
+        DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace',
+        OUTBOX_ENCRYPTION_KEY: 'not-a-valid-32-byte-key',
+      }),
+    ).toThrowError(/OUTBOX_ENCRYPTION_KEY/);
   });
 });

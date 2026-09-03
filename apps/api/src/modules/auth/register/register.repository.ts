@@ -30,8 +30,8 @@ export async function createUser(
 export async function createEmailVerificationToken(
   client: PoolClient,
   input: CreateVerificationTokenInput,
-): Promise<void> {
-  await client.query(
+): Promise<string> {
+  const result = await client.query<{ id: string }>(
     `
       INSERT INTO auth_action_tokens (
         user_id,
@@ -40,7 +40,20 @@ export async function createEmailVerificationToken(
         expires_at
       )
       VALUES ($1, 'EMAIL_VERIFICATION', $2, $3)
+      RETURNING id
     `,
     [input.userId, input.tokenHash, input.expiresAt],
   );
+
+  const tokenId = result.rows[0]?.id;
+
+  /*
+   * A successful INSERT ... RETURNING must produce one row.
+   * Missing it indicates an unexpected database result.
+   */
+  if (tokenId === undefined) {
+    throw new Error('Email verification token insert returned no ID');
+  }
+
+  return tokenId;
 }

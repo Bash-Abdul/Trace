@@ -6,7 +6,7 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 
 - Phase 0: complete
 - Phase 1: in progress
-- Current task: complete registration email delivery through the PostgreSQL outbox
+- Current task: process queued verification emails through the PostgreSQL outbox runner
 
 ## Completed
 
@@ -27,19 +27,23 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 - registration schema, repository, transactional service, controller, and route
 - registration endpoint mounted at `POST /api/v1/auth/register`
 - registration integration coverage for validation, normalisation, protected persistence, and duplicates
+- `outbox_jobs` migration with idempotency, processing-state, retry, and worker-lease foundations
+- AES-256-GCM protection for secret verification-email payloads
+- registration transaction atomically creates the user, token hash, and encrypted outbox job
+- environment and CI validation for the outbox encryption key
+- unit and integration coverage for encryption and registration outbox creation
 - root `pnpm verify` command
 
 ## Next in Phase 1
 
-1. Add the PostgreSQL `outbox_jobs` migration and repository operations.
-2. Encrypt secret email-job payload data and enqueue verification email in the registration transaction.
-3. Add the scheduled outbox runner and an email-provider interface, then select the provider.
-4. Implement email verification and complete registration/verification feature tests.
-5. Implement login, opaque sessions, logout, and their feature tests.
-6. Implement password reset and session revocation.
-7. Add CSRF protection, authentication rate limiting, and security audit events.
-8. Implement projects, memberships, invitations, and project-scoped authorization.
-9. Define the storage interface only; do not implement uploads yet.
+1. Add worker-facing outbox repository operations and focused concurrency tests.
+2. Add the scheduled outbox runner and an email-provider interface, then select the provider.
+3. Implement email verification and complete registration/verification feature tests.
+4. Implement login, opaque sessions, logout, and their feature tests.
+5. Implement password reset and session revocation.
+6. Add CSRF protection, authentication rate limiting, and security audit events.
+7. Implement projects, memberships, invitations, and project-scoped authorization.
+8. Define the storage interface only; do not implement uploads yet.
 
 ## Resume on another PC
 
@@ -47,10 +51,11 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 2. Install Node.js 24, pnpm 11, and Docker Desktop.
 3. Run `pnpm install`.
 4. Create `apps/api/.env` from `.env.example`.
-5. Run `docker compose up -d postgres`.
-6. Create the local `trace_test` database if it does not already exist.
-7. Run `pnpm db:migrate`.
-8. Run `pnpm verify`.
+5. Generate and set `OUTBOX_ENCRYPTION_KEY` using the command documented in `.env.example`.
+6. Run `docker compose up -d postgres`.
+7. Create the local `trace_test` database if it does not already exist.
+8. Run `pnpm db:migrate`.
+9. Run `pnpm verify`.
 
 ## Working agreement
 

@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { verifyPassword } from '../auth-crypto/auth-crypto.js';
+import { hashOpaqueToken, verifyPassword } from '../auth-crypto/auth-crypto.js';
 
 function getTestDatabaseUrl(): string {
   const testDatabaseUrl = process.env.TEST_DATABASE_URL;
@@ -33,11 +33,23 @@ process.env.DATABASE_URL = getTestDatabaseUrl();
 
 const { createApp } = await import('../../../app.js');
 const { pool } = await import('../../../config/db.js');
+const { decryptEmailVerificationPayload } = await import('../../outbox/outbox-payload.js');
 
 const app = createApp();
 const testEmailPrefix = 'registration-test-';
 
 async function removeRegistrationTestUsers(): Promise<void> {
+  /*
+   * Outbox jobs are deliberately generic and do not have a cascading user
+   * foreign key, so remove this test suite's current job type explicitly.
+   */
+  await pool.query(
+    `
+      DELETE FROM outbox_jobs
+      WHERE job_type = 'SEND_EMAIL_VERIFICATION'
+    `,
+  );
+
   // Deleting users also removes their action tokens through ON DELETE CASCADE.
   await pool.query('DELETE FROM users WHERE email LIKE $1', [`${testEmailPrefix}%`]);
 }
@@ -94,13 +106,14 @@ describe('POST /api/v1/auth/register', () => {
     expect(user?.email_verified_at).toBeNull();
 
     const tokenResult = await pool.query<{
+      id: string;
       purpose: string;
       token_hash: string;
       expires_at: Date;
       consumed_at: Date | null;
     }>(
       `
-        SELECT purpose, token_hash, expires_at, consumed_at
+        SELECT id, purpose, token_hash, expires_at, consumed_at
         FROM auth_action_tokens
         WHERE user_id = $1
       `,
@@ -114,6 +127,45 @@ describe('POST /api/v1/auth/register', () => {
     });
     expect(tokenResult.rows[0]?.token_hash).toMatch(/^[a-f0-9]{64}$/);
     expect(tokenResult.rows[0]?.expires_at.getTime()).toBeGreaterThan(Date.now());
+
+    const tokenRecord = tokenResult.rows[0];
+
+    const outboxResult = await pool.query<{
+      job_type: string;
+      encrypted_payload: string;
+      idempotency_key: string;
+      status: string;
+      attempt_count: number;
+    }>(
+      `
+        SELECT
+          job_type,
+          encrypted_payload,
+          idempotency_key,
+          status,
+          attempt_count
+        FROM outbox_jobs
+        WHERE idempotency_key = $1
+      `,
+      [`email-verification:${tokenRecord?.id}`],
+    );
+
+    expect(outboxResult.rows).toHaveLength(1);
+
+    const outboxJob = outboxResult.rows[0];
+
+    expect(outboxJob).toMatchObject({
+      job_type: 'SEND_EMAIL_VERIFICATION',
+      idempotency_key: `email-verification:${tokenRecord?.id}`,
+      status: 'PENDING',
+      attempt_count: 0,
+    });
+
+    const decryptedPayload = decryptEmailVerificationPayload(outboxJob?.encrypted_payload ?? '');
+
+    expect(decryptedPayload.recipientEmail).toBe(email);
+    expect(hashOpaqueToken(decryptedPayload.verificationToken)).toBe(tokenRecord?.token_hash);
+    expect(outboxJob?.encrypted_payload).not.toContain(decryptedPayload.verificationToken);
   });
 
   it('returns the same response without duplicating an existing account', async () => {
@@ -150,6 +202,16 @@ describe('POST /api/v1/auth/register', () => {
       user_count: '1',
       token_count: '1',
     });
+
+    const outboxCountResult = await pool.query<{ count: string }>(
+      `
+        SELECT COUNT(*)::text AS count
+        FROM outbox_jobs
+        WHERE job_type = 'SEND_EMAIL_VERIFICATION'
+      `,
+    );
+
+    expect(outboxCountResult.rows[0]?.count).toBe('1');
   });
 
   it('rejects invalid registration data without creating database records', async () => {
@@ -174,5 +236,15 @@ describe('POST /api/v1/auth/register', () => {
     );
 
     expect(result.rows[0]?.count).toBe('0');
+
+    const outboxResult = await pool.query<{ count: string }>(
+      `
+        SELECT COUNT(*)::text AS count
+        FROM outbox_jobs
+        WHERE job_type = 'SEND_EMAIL_VERIFICATION'
+      `,
+    );
+
+    expect(outboxResult.rows[0]?.count).toBe('0');
   });
 });
