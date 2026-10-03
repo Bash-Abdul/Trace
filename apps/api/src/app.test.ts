@@ -35,7 +35,7 @@ describe('application HTTP foundation', () => {
     expect(body).toEqual({
       error: {
         code: 'ROUTE_NOT_FOUND',
-        message: 'Route GET /missing was not found',
+        message: 'Route GET was not found',
         requestId,
       },
     });

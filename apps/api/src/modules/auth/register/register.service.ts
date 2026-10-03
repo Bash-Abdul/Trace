@@ -1,3 +1,4 @@
+import { audit } from '../auth.service.js';
 import { withTransaction } from '../../../config/db.js';
 import { createOutboxJob } from '../../outbox/outbox.repository.js';
 import { encryptEmailVerificationPayload } from '../../outbox/outbox-payload.js';
@@ -69,6 +70,8 @@ export async function registerUser(input: RegisterSchema): Promise<RegisterUserR
     if (outboxJobId === null) {
       throw new Error('Verification email outbox job already exists');
     }
+
+    await audit(client, 'REGISTERED', userId);
 
     return {
       created: true,

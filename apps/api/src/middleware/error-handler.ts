@@ -23,7 +23,7 @@ function getRequestId(requestId: unknown): string {
 }
 
 export const notFoundHandler: RequestHandler = (request, _response, next) => {
-  next(notFound(`Route ${request.method} ${request.originalUrl} was not found`, 'ROUTE_NOT_FOUND'));
+  next(notFound(`Route ${request.method} was not found`, 'ROUTE_NOT_FOUND'));
 };
 
 export const errorHandler: ErrorRequestHandler = (error: unknown, request, response, next) => {

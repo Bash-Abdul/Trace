@@ -5,6 +5,8 @@ import { env } from '../config/index.js';
 const sensitivePaths = [
   'req.headers.authorization',
   'req.headers.cookie',
+  'req.headers["x-csrf-token"]',
+  'req.headers.referer',
   'res.headers["set-cookie"]',
 
   'password',

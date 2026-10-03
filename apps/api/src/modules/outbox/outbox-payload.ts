@@ -14,7 +14,10 @@ const encryptionKey = Buffer.from(env.OUTBOX_ENCRYPTION_KEY, 'base64');
  * Additional authenticated data binds this ciphertext to its intended
  * Trace job type and envelope version.
  */
-const additionalAuthenticatedData = Buffer.from('trace:outbox:SEND_EMAIL_VERIFICATION:v1', 'utf8');
+type EmailJobType = 'SEND_EMAIL_VERIFICATION' | 'SEND_PASSWORD_RESET';
+function additionalAuthenticatedData(jobType: EmailJobType) {
+  return Buffer.from(`trace:outbox:${jobType}:v1`, 'utf8');
+}
 
 const encryptedEnvelopeSchema = z
   .object({
@@ -25,6 +28,8 @@ const encryptedEnvelopeSchema = z
   })
   .strict();
 
+// The legacy verificationToken field carries either purpose's action token;
+// the authenticated envelope binds it to the job type. Existing jobs stay readable.
 export const emailVerificationJobPayloadSchema = z
   .object({
     recipientEmail: z.string().email(),
@@ -38,7 +43,10 @@ export type EmailVerificationJobPayload = z.infer<typeof emailVerificationJobPay
  * Encrypts the secret email payload using authenticated AES-256-GCM.
  * The returned envelope is safe to store in the outbox table.
  */
-export function encryptEmailVerificationPayload(payload: EmailVerificationJobPayload): string {
+export function encryptEmailVerificationPayload(
+  payload: EmailVerificationJobPayload,
+  jobType: EmailJobType = 'SEND_EMAIL_VERIFICATION',
+): string {
   const validatedPayload = emailVerificationJobPayloadSchema.parse(payload);
 
   const serializedPayload = JSON.stringify(validatedPayload);
@@ -46,7 +54,7 @@ export function encryptEmailVerificationPayload(payload: EmailVerificationJobPay
 
   const cipher = createCipheriv(algorithm, encryptionKey, initializationVector);
 
-  cipher.setAAD(additionalAuthenticatedData);
+  cipher.setAAD(additionalAuthenticatedData(jobType));
 
   const ciphertext = Buffer.concat([cipher.update(serializedPayload, 'utf8'), cipher.final()]);
 
@@ -66,6 +74,7 @@ export function encryptEmailVerificationPayload(payload: EmailVerificationJobPay
  */
 export function decryptEmailVerificationPayload(
   encryptedPayload: string,
+  jobType: EmailJobType = 'SEND_EMAIL_VERIFICATION',
 ): EmailVerificationJobPayload {
   const parsedEnvelope: unknown = JSON.parse(encryptedPayload);
   const envelope = encryptedEnvelopeSchema.parse(parsedEnvelope);
@@ -76,7 +85,7 @@ export function decryptEmailVerificationPayload(
     Buffer.from(envelope.initializationVector, 'base64'),
   );
 
-  decipher.setAAD(additionalAuthenticatedData);
+  decipher.setAAD(additionalAuthenticatedData(jobType));
   decipher.setAuthTag(Buffer.from(envelope.authenticationTag, 'base64'));
 
   const plaintext = Buffer.concat([

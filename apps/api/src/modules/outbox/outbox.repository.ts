@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 
-export type OutboxJobType = 'SEND_EMAIL_VERIFICATION';
+export type OutboxJobType = 'SEND_EMAIL_VERIFICATION' | 'SEND_PASSWORD_RESET';
 
 interface CreateOutboxJobInput {
   jobType: OutboxJobType;

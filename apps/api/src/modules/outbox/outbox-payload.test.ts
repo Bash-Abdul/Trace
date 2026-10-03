@@ -40,4 +40,9 @@ describe('outbox payload protection', () => {
 
     expect(() => decryptEmailVerificationPayload(JSON.stringify(envelope))).toThrow();
   });
+  it('binds ciphertext to the job purpose', () => {
+    const encrypted = encryptEmailVerificationPayload(payload, 'SEND_PASSWORD_RESET');
+    expect(() => decryptEmailVerificationPayload(encrypted)).toThrow();
+    expect(decryptEmailVerificationPayload(encrypted, 'SEND_PASSWORD_RESET')).toEqual(payload);
+  });
 });

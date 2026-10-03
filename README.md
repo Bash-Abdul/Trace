@@ -4,7 +4,7 @@ Trace is a project supervision and evidence platform for long-running assessed p
 
 It gives an Author and their assigned Reviewers a structured record of project expectations, milestone submissions, evidence, feedback, revisions, decisions, deliverables, and final approval. The resulting project history becomes a printable Process Portfolio.
 
-> **Status:** Phase 1 is in progress. The API runtime, PostgreSQL and migration foundation, authentication schema, integration-test foundation, and CI checks exist. Authentication application workflows and project-scoped access are next.
+> **Status:** Phase 1 is in progress. The API implements registration/verification, login, cookie sessions, logout, password reset, and session revocation, with CSRF checks, rate limits, security audit events, and an email outbox worker. Frontend auth pages, live email configuration, and project-scoped access remain.
 
 ## Why Trace?
 
@@ -159,6 +159,7 @@ Run commands from the repository root.
 
 | Command | Purpose |
 | --- | --- |
+| `pnpm worker:email` | Process up to 100 queued authentication emails (requires email configuration) |
 | `pnpm dev:api` | Start the API and restart it when source files change |
 | `pnpm format` | Apply Prettier formatting |
 | `pnpm format:check` | Check formatting without changing files |
@@ -196,6 +197,10 @@ CI validates changes but does not deploy Trace. Deployment will be introduced se
 4. Project changes and Reviewer succession
 5. Final approval, deadlines, and printable Process Portfolio
 6. Release readiness, recovery, privacy, and operational hardening
+
+## Authentication
+
+See the [authentication guide](apps/api/docs/authentication.md) for endpoints, cookies, CSRF, email setup, and implementation limits. The [OpenAPI contract](apps/api/docs/auth.openapi.json) describes the auth routes.
 
 ## Documentation
 

@@ -20,7 +20,8 @@
     "db:migration:create": "node-pg-migrate create --migrations-dir migrations --migration-file-language ts --migration-filename-format timestamp",
     "db:migrate": "node-pg-migrate up --migrations-dir migrations --envPath .env",
     "db:migrate:test": "node-pg-migrate up --migrations-dir migrations --envPath .env --database-url-var TEST_DATABASE_URL",
-    "db:rollback": "node-pg-migrate down --migrations-dir migrations --envPath .env"
+    "db:rollback": "node-pg-migrate down --migrations-dir migrations --envPath .env",
+    "worker:email": "tsx src/email-worker.ts"
   },
   "dependencies": {
     "argon2": "^0.45.1",

@@ -37,6 +37,16 @@ export const environmentSchema = z.object({
   TEST_DATABASE_URL: databaseUrlSchema.optional(),
 
   OUTBOX_ENCRYPTION_KEY: outboxEncryptionKeySchema,
+  APP_ORIGIN: z
+    .string()
+    .url()
+    .default('http://localhost:3000')
+    .refine((value) => {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+    }, 'APP_ORIGIN must be an HTTP(S) origin without a path'),
+  SESSION_IDLE_SECONDS: z.coerce.number().int().min(60).max(86400).default(1800),
+  SESSION_ABSOLUTE_SECONDS: z.coerce.number().int().min(60).max(2592000).default(604800),
 });
 
 export type Environment = Readonly<z.infer<typeof environmentSchema>>;
@@ -56,5 +66,14 @@ export function parseEnvironment(input: NodeJS.ProcessEnv): Environment {
     throw new Error(`Invalid environment configuration: ${details}`);
   }
 
+  if (result.data.SESSION_IDLE_SECONDS > result.data.SESSION_ABSOLUTE_SECONDS) {
+    throw new Error('Session idle lifetime must not exceed absolute lifetime');
+  }
+  if (
+    result.data.NODE_ENV === 'production' &&
+    (!input.APP_ORIGIN || !result.data.APP_ORIGIN.startsWith('https:'))
+  ) {
+    throw new Error('Production requires an explicit HTTPS APP_ORIGIN');
+  }
   return Object.freeze(result.data);
 }

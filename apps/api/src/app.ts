@@ -1,4 +1,6 @@
 import express from 'express';
+import { authRouter } from './modules/auth/auth.routes.js';
+import { authBrowserControls, authRateLimit } from './modules/auth/auth.middleware.js';
 
 import { checkDatabaseConnection } from './config/db.js';
 import { errorHandler, notFoundHandler } from './middleware/error-handler.js';
@@ -55,7 +57,7 @@ export function createApp(dependencies: AppDependencies = defaultDependencies) {
     }
   });
 
-  app.use('/api/v1/auth', registerRouter);
+  app.use('/api/v1/auth', authBrowserControls, authRateLimit, registerRouter, authRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

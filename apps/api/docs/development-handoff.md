@@ -6,7 +6,10 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 
 - Phase 0: complete
 - Phase 1: in progress
-- Current task: process queued verification emails through the PostgreSQL outbox runner
+- Auth API implementation: present through account-wide session revocation
+- Auth sign-off: pending a successful run of the final PostgreSQL integration suite
+- Next product milestone: projects, memberships, invitations, and project-scoped authorization
+- Current checkpoint: October 3, 2026
 
 ## Completed
 
@@ -33,17 +36,56 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 - environment and CI validation for the outbox encryption key
 - unit and integration coverage for encryption and registration outbox creation
 - root `pnpm verify` command
+- worker-facing outbox operations with lease recovery, bounded retries, and attempt fencing
+- bounded email runner and replaceable Resend adapter
+- worker concurrency/retry tests and provider transport tests
+- email verification and resend with single-use tokens, expiry, invalidation, and cooldown
+- verified-account login, HTTP-only cookie sessions, idle/absolute expiry, and logout
+- current-session retrieval, owned-session listing, individual revocation, and revoke-all
+- password reset with atomic password replacement, token consumption, and session revocation
+- session-bound CSRF checks, origin controls, persistent rate limits, and security audit events
+- account locking and credential rechecks for concurrent reset/login requests
+- encrypted password-reset emails and suppression of obsolete outbox tokens
+- authentication API guide and OpenAPI contract
 
 ## Next in Phase 1
 
-1. Add worker-facing outbox repository operations and focused concurrency tests.
-2. Add the scheduled outbox runner and an email-provider interface, then select the provider.
-3. Implement email verification and complete registration/verification feature tests.
-4. Implement login, opaque sessions, logout, and their feature tests.
-5. Implement password reset and session revocation.
-6. Add CSRF protection, authentication rate limiting, and security audit events.
-7. Implement projects, memberships, invitations, and project-scoped authorization.
-8. Define the storage interface only; do not implement uploads yet.
+1. Start the existing local PostgreSQL service and run the final test suite against
+   the guarded `_test` database. Apply any pending test migrations first. This is
+   the remaining auth verification gate, not evidence of a known failing auth flow.
+2. Build project and membership migrations, project creation/list/detail routes,
+   and permissions using the existing authenticated-session transaction boundary.
+   Preserve the permanent Author, exactly one active main Reviewer when assigned,
+   and read-only dormant Reviewer rules from the engineering plan.
+3. Add email-bound invitations: issuance, expiry, cancellation, and atomic acceptance
+   by the verified invited account. Test replay, email mismatch, role uniqueness,
+   and concurrency.
+4. Verify cross-project isolation and role-specific access; project roles must never
+   become global account roles. Keep project activation/proposal behavior in Phase 2.
+5. Define the storage interface/configuration boundary only; uploads remain Phase 3.
+
+Frontend auth screens and live email delivery are separate outstanding integration
+work. Configure a verified sender and the verification/reset page URLs, then test
+the real email-to-browser flow. Provision the bounded worker's schedule at deployment.
+No browser or mobile app is present in this checkout.
+
+After Phase 1, proceed to templates, proposals, and project activation (Phase 2).
+
+## Verification at this checkpoint
+
+- October 3: all 34 unit/HTTP tests passed; TypeScript, ESLint, and formatting passed.
+- The final PostgreSQL suite has 24 tests. Its October 3 run could not exercise the
+  workflows because PostgreSQL refused connections at `127.0.0.1:5432`.
+- An earlier version passed 20 integration tests. Four subsequently added tests
+  and final refinements still need database verification; do not report all 24 as passed.
+- October 3: the production build also passed for the final checkpoint.
+- The new migration was previously applied only to the test database. Development
+  migration state has not been verified.
+- No live email was sent. No deployment or remote CI result has been verified.
+
+See [authentication.md](./authentication.md) for configuration, security decisions,
+known operational limits, and endpoint behavior, and [auth.openapi.json](./auth.openapi.json)
+for the API contract.
 
 ## Resume on another PC
 
@@ -51,7 +93,7 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 2. Install Node.js 24, pnpm 11, and Docker Desktop.
 3. Run `pnpm install`.
 4. Create `apps/api/.env` from `.env.example`.
-5. Generate and set `OUTBOX_ENCRYPTION_KEY` using the command documented in `.env.example`.
+5. For a fresh local database, generate `OUTBOX_ENCRYPTION_KEY` as documented in `.env.example`. When restoring existing data, restore the original key; replacing it breaks pending encrypted emails and existing CSRF tokens.
 6. Run `docker compose up -d postgres`.
 7. Create the local `trace_test` database if it does not already exist.
 8. Run `pnpm db:migrate`.
@@ -59,10 +101,27 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 
 ## Working agreement
 
-- The user writes application code unless file edits are explicitly requested.
+- The user has authorized direct implementation by the assistant (September 18, 2026).
+- Preserve existing work; ask before deleting user files, discarding changes, or resetting Git.
 - Generated code should include brief comments for important behavior.
 - Explain new tools and design choices before introducing them.
 - Implement a coherent feature first, then add the smallest risk-based test set before calling it complete.
 - Do not create tests for trivial implementation details or library behavior.
 - Do not introduce later-phase infrastructure early.
 - Use PostgreSQL as the MVP durable job queue; add no external queue without a measured trigger.
+
+## Recovery context
+
+The September 3 Git baseline contained registration and encrypted email enqueueing,
+but not the later auth flow or mobile app remembered by the user. This checkpoint
+rebuilds the backend auth flow. The earlier mobile implementation and its later
+design decisions have not been recovered. Do not treat the baseline plan's native
+mobile exclusion as a new user requirement.
+
+Preserve the existing application-owned auth design: Argon2id, opaque database
+sessions, and a PostgreSQL outbox. The current schema keeps credentials and primary
+email verification on `users`; the engineering plan's separate credential and
+verified-email tables describe a target structure that is not implemented here.
+
+A local commit preserves this checkpoint in this clone. Remote backup still requires
+an explicit push; do not describe a local commit as remotely backed up.

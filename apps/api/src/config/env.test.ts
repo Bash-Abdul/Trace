@@ -14,7 +14,7 @@ describe('parseEnvironment', () => {
       OUTBOX_ENCRYPTION_KEY: validOutboxEncryptionKey,
     });
 
-    expect(environment).toEqual({
+    expect(environment).toMatchObject({
       NODE_ENV: 'test',
       PORT: 4000,
       DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace_test',
@@ -64,5 +64,22 @@ describe('parseEnvironment', () => {
         OUTBOX_ENCRYPTION_KEY: 'not-a-valid-32-byte-key',
       }),
     ).toThrowError(/OUTBOX_ENCRYPTION_KEY/);
+  });
+  it('requires an explicit HTTPS origin in production and ordered session lifetimes', () => {
+    const base = {
+      DATABASE_URL: 'postgresql://trace:trace@localhost:5432/trace',
+      OUTBOX_ENCRYPTION_KEY: validOutboxEncryptionKey,
+    };
+    expect(() => parseEnvironment({ ...base, NODE_ENV: 'production' })).toThrow(/HTTPS/);
+    expect(() =>
+      parseEnvironment({ ...base, NODE_ENV: 'production', APP_ORIGIN: 'http://example.com' }),
+    ).toThrow(/HTTPS/);
+    expect(() =>
+      parseEnvironment({ ...base, SESSION_IDLE_SECONDS: '1000', SESSION_ABSOLUTE_SECONDS: '100' }),
+    ).toThrow(/idle lifetime/);
+    expect(
+      parseEnvironment({ ...base, NODE_ENV: 'production', APP_ORIGIN: 'https://trace.example' })
+        .APP_ORIGIN,
+    ).toBe('https://trace.example');
   });
 });
