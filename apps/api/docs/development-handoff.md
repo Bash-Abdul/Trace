@@ -9,7 +9,8 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 - Auth API implementation: present through account-wide session revocation
 - Auth sign-off: pending a successful run of the final PostgreSQL integration suite
 - Next product milestone: projects, memberships, invitations, and project-scoped authorization
-- Current checkpoint: October 3, 2026
+- Current checkpoint: October 8, 2026
+- Auth implementation commit: `35b0644` (working tree was clean at this review)
 
 ## Completed
 
@@ -67,11 +68,13 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
 Frontend auth screens and live email delivery are separate outstanding integration
 work. Configure a verified sender and the verification/reset page URLs, then test
 the real email-to-browser flow. Provision the bounded worker's schedule at deployment.
-No browser or mobile app is present in this checkout.
+No browser or mobile app is present in this checkout. Track mobile reconstruction
+in [mobile-recovery.md](./mobile-recovery.md); the previous client architecture
+and screens are unknown and must not be invented as historical decisions.
 
 After Phase 1, proceed to templates, proposals, and project activation (Phase 2).
 
-## Verification at this checkpoint
+## Latest verification results (October 3; not rerun October 8)
 
 - October 3: all 34 unit/HTTP tests passed; TypeScript, ESLint, and formatting passed.
 - The final PostgreSQL suite has 24 tests. Its October 3 run could not exercise the
@@ -125,3 +128,16 @@ verified-email tables describe a target structure that is not implemented here.
 
 A local commit preserves this checkpoint in this clone. Remote backup still requires
 an explicit push; do not describe a local commit as remotely backed up.
+
+## October 8 handoff update
+
+The auth implementation was already committed in `35b0644`; no additional
+application changes were found. This update records the missing mobile work and
+the next milestones. It does not change the auth verification status above.
+
+Immediate next step: finish the PostgreSQL auth checks. Next implementation:
+project creation and membership permissions, followed by invitations and access
+isolation tests. For mobile, first establish a new, reviewable screen/interaction
+baseline and decide the client type before changing the browser-cookie auth
+contract. The original client stack is not recoverable from the checked local
+history for `apps/mobile` or `apps/web`.
