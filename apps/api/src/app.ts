@@ -1,5 +1,4 @@
 import express from 'express';
-import { projectsRouter } from './modules/projects/projects.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { authBrowserControls, authRateLimit } from './modules/auth/auth.middleware.js';
 
@@ -59,8 +58,6 @@ export function createApp(dependencies: AppDependencies = defaultDependencies) {
   });
 
   app.use('/api/v1/auth', authBrowserControls, authRateLimit, registerRouter, authRouter);
-
-  app.use('/api/v1/projects', projectsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

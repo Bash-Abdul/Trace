@@ -1,111 +1,143 @@
 # Trace Backend Development Handoff
 
-Updated October 8, 2026. Read this checkpoint before repeating earlier work.
-The [backend engineering plan](./backend-engineering-plan.md) contains the product
-rules and overall roadmap; the implementation guides describe the current APIs.
+The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
 ## Current position
 
-- Phase 0: complete.
-- Phase 1 backend access implementation: complete at this checkpoint.
-- Auth API: implemented through account-wide session revocation; final database
-  verification is now complete. Do not restart the auth implementation.
-- Projects, memberships, and copy-link invitations: implemented and tested.
-- Next implementation: Phase 2 templates, structure versions, proposals, and activation.
-- Projects currently remain in SETUP for both routes, even after both participants
-  join. Activation is explicitly deferred until Phase 2 establishes structure versions.
-- Browser/mobile screens, live email verification, and deployment remain outstanding.
+- Phase 0: complete
+- Phase 1: in progress
+- Auth API implementation: present through account-wide session revocation
+- Auth sign-off: pending a successful run of the final PostgreSQL integration suite
+- Next product milestone: projects, memberships, invitations, and project-scoped authorization
+- Current checkpoint: October 8, 2026
+- Auth implementation commit: `35b0644` (working tree was clean at this review)
 
-## Implemented
+## Completed
 
-- TypeScript/Express workspace; validation, logging, errors, health/readiness,
-  PostgreSQL pool/transactions, migrations, tests, build, and CI configuration.
-- Registration, email verification/resend, verified-account login, opaque cookie
-  sessions, idle/absolute expiry, logout, session listing and revocation.
-- Password reset with atomic token consumption, password replacement, and
-  account-wide session revocation; CSRF/origin checks, rate limiting, security audits.
-- PostgreSQL outbox runner with purpose-bound encryption, leases, bounded retries,
-  attempt fencing, obsolete-token suppression, and a replaceable Resend adapter.
-- Project creation by Author or main Reviewer, member-only listing/detail/history,
-  permanent authorship, immutable creator/approval route, and unique role assignments.
-- Email-bound invitations with configurable expiry, replacement/resend, cancellation,
-  verified-email acceptance, atomic membership updates, and idempotent acceptance.
-- Dormant Reviewer read-only permissions; cross-project denials; transactional
-  project audit events and ordinary notification rows excluding dormant Reviewers.
-- Private storage interface/configuration types only. No adapter, uploads, bucket,
-  or file policy has been introduced.
-- One API contract in [auth.openapi.json](./auth.openapi.json), retaining its original
-  filename while now covering project access as well as authentication.
+- pnpm workspace and `apps/api` scaffold
+- TypeScript, Express, ESLint, Prettier, Vitest, and Supertest
+- environment validation
+- structured logging, request IDs, and JSON error handling
+- `/health` and `/ready` endpoints
+- graceful HTTP and database shutdown
+- PostgreSQL 17 local Docker service
+- shared `pg` pool and transaction helper
+- three-table authentication schema and version-controlled migration
+- migration apply, rollback, reapply, and clean CI migration checks
+- isolated PostgreSQL integration database and transaction tests
+- GitHub Actions quality, database, dependency, and secret checks
+- Argon2id password hashing and opaque-token crypto helpers
+- reusable Zod validation middleware for bodies, parameters, and query strings
+- registration schema, repository, transactional service, controller, and route
+- registration endpoint mounted at `POST /api/v1/auth/register`
+- registration integration coverage for validation, normalisation, protected persistence, and duplicates
+- `outbox_jobs` migration with idempotency, processing-state, retry, and worker-lease foundations
+- AES-256-GCM protection for secret verification-email payloads
+- registration transaction atomically creates the user, token hash, and encrypted outbox job
+- environment and CI validation for the outbox encryption key
+- unit and integration coverage for encryption and registration outbox creation
+- root `pnpm verify` command
+- worker-facing outbox operations with lease recovery, bounded retries, and attempt fencing
+- bounded email runner and replaceable Resend adapter
+- worker concurrency/retry tests and provider transport tests
+- email verification and resend with single-use tokens, expiry, invalidation, and cooldown
+- verified-account login, HTTP-only cookie sessions, idle/absolute expiry, and logout
+- current-session retrieval, owned-session listing, individual revocation, and revoke-all
+- password reset with atomic password replacement, token consumption, and session revocation
+- session-bound CSRF checks, origin controls, persistent rate limits, and security audit events
+- account locking and credential rechecks for concurrent reset/login requests
+- encrypted password-reset emails and suppression of obsolete outbox tokens
+- authentication API guide and OpenAPI contract
 
-## Verification
+## Next in Phase 1
 
-- October 8: `pnpm verify` passes: formatting, lint, TypeScript, 34 unit/HTTP tests,
-  34 PostgreSQL integration tests, and production build.
-- All migrations applied successfully to a fresh disposable database. The 24
-  auth/outbox/database tests that were previously blocked now pass, alongside
-  10 project integration tests.
-- Local verification used PostgreSQL 18.6 server binaries extracted under `/tmp`,
-  loopback port 55432, and a new `trace_backend_test` database because Docker's WSL
-  integration was unavailable. No system server package/service was installed.
-- CI remains configured for PostgreSQL 17; no remote CI run is claimed here.
-- Development database and `.env` were not changed. Run `pnpm db:migrate` against
-  development when preparing the runtime; its migration state is not verified here.
-- No real email was sent and no deployment was performed.
+1. Start the existing local PostgreSQL service and run the final test suite against
+   the guarded `_test` database. Apply any pending test migrations first. This is
+   the remaining auth verification gate, not evidence of a known failing auth flow.
+2. Build project and membership migrations, project creation/list/detail routes,
+   and permissions using the existing authenticated-session transaction boundary.
+   Preserve the permanent Author, exactly one active main Reviewer when assigned,
+   and read-only dormant Reviewer rules from the engineering plan.
+3. Add email-bound invitations: issuance, expiry, cancellation, and atomic acceptance
+   by the verified invited account. Test replay, email mismatch, role uniqueness,
+   and concurrency.
+4. Verify cross-project isolation and role-specific access; project roles must never
+   become global account roles. Keep project activation/proposal behavior in Phase 2.
+5. Define the storage interface/configuration boundary only; uploads remain Phase 3.
 
-## Next: Phase 2
+Frontend auth screens and live email delivery are separate outstanding integration
+work. Configure a verified sender and the verification/reset page URLs, then test
+the real email-to-browser flow. Provision the bounded worker's schedule at deployment.
+No browser or mobile app is present in this checkout. Track mobile reconstruction
+in [mobile-recovery.md](./mobile-recovery.md); the previous client architecture
+and screens are unknown and must not be invented as historical decisions.
 
-1. Define and seed the four versioned templates from the engineering plan. Copy
-   structure into each project so later template edits cannot change existing work.
-2. Implement project-owned objectives, ordered milestones, expected evidence,
-   deliverables, and immutable structure/proposal versions.
-3. Add Author proposal submission and current-main-Reviewer decisions against the
-   exact submitted version; reject stale decisions and unauthorized role actions.
-4. Implement both activation routes with participant checks and recorded structure
-   provenance. External approval activates only once the required participants and
-   valid structure exist; in-platform activation additionally requires approval.
-5. Add transactional timeline/notification updates and focused concurrency/access
-   tests for those transitions. Preserve the existing project membership boundary.
+After Phase 1, proceed to templates, proposals, and project activation (Phase 2).
 
-Uploads remain Phase 3. Succession/automatic transfers remain Phase 4. Avoid adding
-those systems while implementing Phase 2.
+## Latest verification results (October 3; not rerun October 8)
 
-## Integration work still outstanding
+- October 3: all 34 unit/HTTP tests passed; TypeScript, ESLint, and formatting passed.
+- The final PostgreSQL suite has 24 tests. Its October 3 run could not exercise the
+  workflows because PostgreSQL refused connections at `127.0.0.1:5432`.
+- An earlier version passed 20 integration tests. Four subsequently added tests
+  and final refinements still need database verification; do not report all 24 as passed.
+- October 3: the production build also passed for the final checkpoint.
+- The new migration was previously applied only to the test database. Development
+  migration state has not been verified.
+- No live email was sent. No deployment or remote CI result has been verified.
 
-- Auth frontend pages and real email-to-browser verification/reset flow.
-- Invitation frontend page using copy links. Invitation email delivery is not
-  implemented; the plan explicitly permits the copy-link option.
-- Notification inbox/read-state API; this checkpoint persists notification rows.
-- An external schedule for `pnpm worker:email`, live sender configuration, and
-  deployment-specific proxy/cookie configuration and Argon2 parameter review.
-- Mobile reconstruction, tracked separately in [mobile-recovery.md](./mobile-recovery.md).
+See [authentication.md](./authentication.md) for configuration, security decisions,
+known operational limits, and endpoint behavior, and [auth.openapi.json](./auth.openapi.json)
+for the API contract.
 
-See [authentication.md](./authentication.md) and [projects.md](./projects.md) for
-configuration, endpoint behavior, security decisions, and implementation limits.
+## Resume on another PC
 
-## Decisions worth preserving
+1. Pull the latest branch.
+2. Install Node.js 24, pnpm 11, and Docker Desktop.
+3. Run `pnpm install`.
+4. Create `apps/api/.env` from `.env.example`.
+5. For a fresh local database, generate `OUTBOX_ENCRYPTION_KEY` as documented in `.env.example`. When restoring existing data, restore the original key; replacing it breaks pending encrypted emails and existing CSRF tokens.
+6. Run `docker compose up -d postgres`.
+7. Create the local `trace_test` database if it does not already exist.
+8. Run `pnpm db:migrate`.
+9. Run `pnpm verify`.
 
-- Keep application-owned Argon2id and opaque database sessions; no JWT migration
-  is underway. JWTs would not remove verification/reset/access-control workflows.
-- Account operations use FOR NO KEY UPDATE: password-reset/login/session operations
-  still serialize, while foreign-key references from another member's notification
-  writes do not deadlock. Project roles are re-read after obtaining the project lock.
-- Pending Author invitations cannot simply be cancelled, because every project
-  must retain an Author slot; reissue to the correct recipient instead.
-- Invitation tokens are returned only at issuance/reissue and stored only as hashes.
-  Acceptance retries require the same account, token, and Idempotency-Key.
-- The current auth schema keeps credentials/primary-email verification on users;
-  separate credential/verified-email tables in the original plan remain a target
-  structure, not implemented functionality.
+## Working agreement
 
-## Working agreement and recovery
+- The user has authorized direct implementation by the assistant (September 18, 2026).
+- Preserve existing work; ask before deleting user files, discarding changes, or resetting Git.
+- Generated code should include brief comments for important behavior.
+- Explain new tools and design choices before introducing them.
+- Implement a coherent feature first, then add the smallest risk-based test set before calling it complete.
+- Do not create tests for trivial implementation details or library behavior.
+- Do not introduce later-phase infrastructure early.
+- Use PostgreSQL as the MVP durable job queue; add no external queue without a measured trigger.
 
-- Direct implementation by the assistant is authorized. Preserve existing work;
-  ask before deleting user files, discarding changes, or resetting Git.
-- Explain material design choices, test coherent features, and record checkpoints.
-- Use PostgreSQL as the durable queue. Add no external queue without a measured need.
-- Do not regenerate OUTBOX_ENCRYPTION_KEY when restoring existing data. Preserve
-  the original key for pending encrypted email payloads and existing CSRF tokens.
-- The earlier mobile app and its decisions have not been recovered. Do not treat
-  the baseline plan's native-mobile exclusion as a new user instruction.
-- Local commits preserve local history. Remote backup requires an explicit push;
-  do not claim a commit is remotely backed up without confirming the push.
+## Recovery context
+
+The September 3 Git baseline contained registration and encrypted email enqueueing,
+but not the later auth flow or mobile app remembered by the user. This checkpoint
+rebuilds the backend auth flow. The earlier mobile implementation and its later
+design decisions have not been recovered. Do not treat the baseline plan's native
+mobile exclusion as a new user requirement.
+
+Preserve the existing application-owned auth design: Argon2id, opaque database
+sessions, and a PostgreSQL outbox. The current schema keeps credentials and primary
+email verification on `users`; the engineering plan's separate credential and
+verified-email tables describe a target structure that is not implemented here.
+
+A local commit preserves this checkpoint in this clone. Remote backup still requires
+an explicit push; do not describe a local commit as remotely backed up.
+
+## October 8 handoff update
+
+The auth implementation was already committed in `35b0644`; no additional
+application changes were found. This update records the missing mobile work and
+the next milestones. It does not change the auth verification status above.
+
+Immediate next step: finish the PostgreSQL auth checks. Next implementation:
+project creation and membership permissions, followed by invitations and access
+isolation tests. For mobile, first establish a new, reviewable screen/interaction
+baseline and decide the client type before changing the browser-cookie auth
+contract. The original client stack is not recoverable from the checked local
+history for `apps/mobile` or `apps/web`.

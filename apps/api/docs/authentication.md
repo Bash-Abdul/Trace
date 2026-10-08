@@ -72,9 +72,7 @@ The machine-readable contract is [auth.openapi.json](./auth.openapi.json).
 
 ## Concurrency and security decisions
 
-Account-changing operations lock the user before tokens/sessions using FOR NO KEY UPDATE.
-This serializes account changes while allowing foreign-key references from concurrent
-project notification writes. Login verifies
+Account-changing operations lock the user before tokens/sessions. Login verifies
 Argon2id outside the transaction and rechecks the credential hash under the user
 lock, so a reset racing an old-password login either revokes the newly created
 session or prevents its creation. Protected session mutations check authorization

@@ -45,7 +45,6 @@ export const environmentSchema = z.object({
       const url = new URL(value);
       return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
     }, 'APP_ORIGIN must be an HTTP(S) origin without a path'),
-  INVITATION_TTL_SECONDS: z.coerce.number().int().min(60).max(2592000).default(604800),
   SESSION_IDLE_SECONDS: z.coerce.number().int().min(60).max(86400).default(1800),
   SESSION_ABSOLUTE_SECONDS: z.coerce.number().int().min(60).max(2592000).default(604800),
 });

@@ -47,7 +47,7 @@ instruction from the user and may predate the lost mobile work.
 
 ## Relationship to the backend roadmap
 
-The auth database verification and Phase 1 project/membership/invitation APIs
-are now implemented and locally verified. Backend work proceeds to templates,
-proposals, and activation. A mobile design baseline can be established separately
-when requested. Frontend auth pages and live email delivery remain outstanding.
+First complete the pending auth database verification. Continue with projects,
+memberships, invitations, and project-scoped permissions. A mobile design baseline
+can be established alongside that work; a connected project workflow depends on
+those APIs. Frontend auth pages and live email delivery remain outstanding.

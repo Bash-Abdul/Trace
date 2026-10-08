@@ -45,10 +45,9 @@ export async function requestAction(email: string, purpose: Purpose): Promise<vo
   await withTransaction(async (client) => {
     // All account mutations lock the user first, then tokens/sessions, to avoid
     // deadlocks and prevent password-reset/login races.
-    const result = await client.query<User>(
-      'SELECT * FROM users WHERE email = $1 FOR NO KEY UPDATE',
-      [email],
-    );
+    const result = await client.query<User>('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
+      email,
+    ]);
     const user = result.rows[0];
     await audit(
       client,
@@ -101,7 +100,7 @@ export async function consumeAction(
     );
     const userId = lookup.rows[0]?.user_id;
     if (!userId) throw badRequest('Invalid or expired token', 'INVALID_TOKEN');
-    await client.query('SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE', [userId]);
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
     const consumed = await client.query(
       `UPDATE auth_action_tokens SET consumed_at = clock_timestamp()
       WHERE token_hash = $1 AND purpose = $2 AND expires_at > clock_timestamp()
@@ -141,9 +140,7 @@ export async function login(email: string, password: string, previousToken: stri
   const csrfToken = sessionCsrfToken(rawToken);
   const result = await withTransaction(async (client) => {
     const locked = candidate
-      ? await client.query<User>('SELECT * FROM users WHERE id = $1 FOR NO KEY UPDATE', [
-          candidate.id,
-        ])
+      ? await client.query<User>('SELECT * FROM users WHERE id = $1 FOR UPDATE', [candidate.id])
       : null;
     const user = locked?.rows[0];
     if (!valid || !user?.email_verified_at || user.password_hash !== candidate?.password_hash) {
@@ -177,8 +174,6 @@ export async function login(email: string, password: string, previousToken: stri
 }
 
 // Keep the session check and protected operation in one account-locked transaction.
-// NO KEY UPDATE still serializes account changes, while allowing foreign-key
-// references from another member's concurrent project audit/notification writes.
 export async function withSession<T>(
   rawToken: string | null,
   csrf: string | undefined,
@@ -193,7 +188,7 @@ export async function withSession<T>(
     );
     const userId = lookup.rows[0]?.user_id;
     if (!userId) throw unauthorized();
-    await client.query('SELECT id FROM users WHERE id = $1 FOR NO KEY UPDATE', [userId]);
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
     const active = await client.query<Session>(
       `SELECT * FROM auth_sessions WHERE token_hash = $1
       AND revoked_at IS NULL AND idle_expires_at > clock_timestamp() AND absolute_expires_at > clock_timestamp() FOR UPDATE`,
