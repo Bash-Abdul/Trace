@@ -4,7 +4,7 @@ Trace is a project supervision and evidence platform for long-running assessed p
 
 It gives an Author and their assigned Reviewers a structured record of project expectations, milestone submissions, evidence, feedback, revisions, decisions, deliverables, and final approval. The resulting project history becomes a printable Process Portfolio.
 
-> **Status:** Phase 1 is in progress. The API implements registration/verification, login, cookie sessions, logout, password reset, and session revocation, with CSRF checks, rate limits, security audit events, and an email outbox worker. Frontend auth pages, live email configuration, and project-scoped access remain.
+> **Status:** Phase 1 backend access is implemented: authentication, projects, memberships, and copy-link invitations. Next are templates, proposals, and project activation. Frontend screens and live email delivery remain outstanding.
 
 ## Why Trace?
 
@@ -201,6 +201,8 @@ CI validates changes but does not deploy Trace. Deployment will be introduced se
 ## Authentication
 
 See the [authentication guide](apps/api/docs/authentication.md) for endpoints, cookies, CSRF, email setup, and implementation limits. The [OpenAPI contract](apps/api/docs/auth.openapi.json) describes the auth routes.
+
+See the [project access guide](apps/api/docs/projects.md) for project creation, invitation acceptance, permissions, and the Phase 1 boundary.
 
 ## Documentation
 
