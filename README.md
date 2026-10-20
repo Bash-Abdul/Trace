@@ -88,7 +88,7 @@ Trace/
 └── pnpm-workspace.yaml      pnpm workspace definition
 ```
 
-The frontend will live in `apps/web` when frontend implementation begins.
+The React visual prototype lives in `apps/web`, organised by feature module and backed by fictional browser-local data.
 
 ## Prerequisites
 
@@ -152,6 +152,12 @@ The API defaults to `http://localhost:3000`. Runtime probes are available at:
 GET /health
 GET /ready
 ```
+
+## Web visual prototype
+
+Run `pnpm dev:web` and open http://127.0.0.1:5173. The responsive prototype uses dummy data and offers Author / Reviewer perspectives, project creation, milestone revisions, feedback, and printable portfolios. Changes stay in browser storage; it does not connect to the API yet.
+
+See [web setup and module architecture](apps/web/README.md) for scope, checks, and integration notes.
 
 ## Development commands
 

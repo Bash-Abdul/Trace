@@ -1,0 +1,270 @@
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+.portfolio-cover {
+  padding: 28px;
+  border: 1px solid #dfe5d6;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  min-height: 330px;
+}
+.portfolio-cover > .eyebrow {
+  margin-top: 50px;
+  font-size: 9px;
+  color: inherit;
+  opacity: 0.65;
+}
+.portfolio-cover h2 {
+  font-family: Newsreader, serif;
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+.portfolio-cover > p:not(.eyebrow) {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.portfolio-cover-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+  border-top: 1px solid #9cab7f33;
+  margin-top: auto;
+  padding-top: 22px;
+  font-size: 11px;
+}
+.portfolio-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+.portfolio-toolbar .back-link {
+  margin: 0;
+}
+.portfolio-document {
+  max-width: 850px;
+  margin: auto;
+  background: #fffefb;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px #384b2905;
+  padding: 60px 64px;
+}
+.portfolio-document-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 70px;
+}
+.portfolio-wordmark {
+  font-size: 32px;
+  letter-spacing: -2px;
+  font-weight: 600;
+  color: #567345;
+}
+.portfolio-document h1 {
+  font-size: 49px;
+  line-height: 1.1;
+  margin: 25px 0;
+}
+.portfolio-intro {
+  font-size: 14px;
+  color: #6c785f;
+  line-height: 1.9;
+}
+.portfolio-meta {
+  display: flex;
+  gap: 35px;
+  padding: 30px 0 40px;
+}
+.portfolio-meta span {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: #6c785f;
+  margin-bottom: 8px;
+}
+.portfolio-meta strong {
+  font-size: 11px;
+  font-weight: 500;
+  color: #70815d;
+}
+.portfolio-document section {
+  border-top: 1px solid #e5e9dc;
+  padding-top: 35px;
+  margin-top: 15px;
+}
+.portfolio-document section > h2 {
+  font-family: Newsreader, serif;
+  font-size: 30px;
+  font-weight: 400;
+}
+.portfolio-document li,
+.portfolio-document section > p {
+  font-size: 12px;
+  color: #6c785f;
+  line-height: 1.9;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.portfolio-milestone {
+  margin: 35px 0;
+}
+.portfolio-milestone h3 {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+}
+.portfolio-milestone h3 > span {
+  font-family: Newsreader, serif;
+  font-size: 23px;
+  color: #6c785f;
+}
+.portfolio-milestone p {
+  font-size: 12px;
+  color: #6c785f;
+  white-space: pre-wrap;
+}
+.portfolio-milestone small {
+  font-size: 11px;
+  color: #6c785f;
+}
+.portfolio-document blockquote {
+  margin: 20px 0;
+  padding: 18px 22px;
+  background: #f3f6ec;
+  border-left: 2px solid #9eaf87;
+  color: #6c785f;
+}
+.portfolio-document blockquote p {
+  font-size: 12px;
+  margin-bottom: 9px;
+}
+.portfolio-document cite {
+  font-size: 11px;
+  font-style: normal;
+}
+.portfolio-history {
+  display: flex;
+  gap: 20px;
+}
+.portfolio-history time {
+  white-space: nowrap;
+  min-width: 42px;
+}
+.portfolio-document footer {
+  font-size: 11px;
+  color: #6c785f;
+  line-height: 1.8;
+  margin-top: 45px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.portfolio-document details {
+  margin-top: 12px;
+  font-size: 11px;
+  color: #6c785f;
+}
+.portfolio-document summary {
+  cursor: pointer;
+}
+.portfolio-document details h4 {
+  font-size: 11px;
+}
+@media (max-width: 1100px) {
+  .portfolio-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .portfolio-document {
+    padding: 40px;
+  }
+}
+@media (max-width: 600px) {
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+  }
+  .portfolio-document {
+    padding: 25px;
+  }
+  .portfolio-document h1 {
+    font-size: 35px;
+  }
+  .portfolio-document-top {
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .portfolio-meta {
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+  .portfolio-toolbar .button {
+    font-size: 11px;
+  }
+  .portfolio-milestone .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .portfolio-history {
+    gap: 10px;
+  }
+}
+@media print {
+  body {
+    background: white;
+  }
+  .sidebar,
+  .topbar,
+  .workspace-footer,
+  .portfolio-toolbar,
+  .toast,
+  .skip-link {
+    display: none !important;
+  }
+  .workspace-main {
+    margin: 0;
+  }
+  .main-content {
+    padding: 0;
+    max-width: none;
+  }
+  .portfolio-document {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    max-width: none;
+  }
+  .portfolio-document h1 {
+    font-size: 36pt;
+  }
+  .portfolio-document h2,
+  .portfolio-document h3 {
+    break-after: avoid;
+  }
+  .portfolio-document .portfolio-meta,
+  .portfolio-document blockquote {
+    break-inside: avoid;
+  }
+  .portfolio-document details {
+    display: block;
+  }
+  .portfolio-document details > div {
+    display: block;
+  }
+  .portfolio-document * {
+    color: #222 !important;
+  }
+  .portfolio-document-top {
+    margin-bottom: 35px;
+  }
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+}

@@ -1,0 +1,121 @@
+.feedback-thread {
+  padding: 25px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  margin-bottom: 18px;
+}
+.feedback-heading {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+}
+.feedback-heading > div {
+  flex: 1;
+}
+.feedback-heading strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.feedback-heading small {
+  display: block;
+  font-size: 11px;
+  color: #6c785f;
+  margin-top: 5px;
+}
+.feedback-body {
+  font-size: 13px;
+  color: #7c8b6b;
+  margin: 20px 0 13px;
+}
+.blocking-note {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 11px;
+  color: #6c785f;
+  margin-bottom: 20px;
+}
+.reply-form {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.reply-form > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-top: 12px;
+}
+.reply-form small {
+  font-size: 11px;
+  color: #6c785f;
+  max-width: 300px;
+}
+.reply-form button {
+  flex-shrink: 0;
+}
+.feedback-reply {
+  display: flex;
+  gap: 12px;
+  margin: 22px 0;
+  padding: 16px;
+  background: #f7f9f2;
+  border-radius: 6px;
+}
+.feedback-reply strong {
+  font-size: 11px;
+}
+.feedback-reply p {
+  font-size: 12px;
+  margin: 7px 0 0;
+  color: #6c785f;
+}
+.review-thread-wrap > .eyebrow {
+  display: block;
+  margin-top: 25px;
+  font-size: 10px;
+}
+.review-queue {
+  margin-bottom: 30px;
+}
+.review-queue > a {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  align-items: center;
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+}
+.review-queue strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.review-queue small {
+  display: block;
+  color: #6c785f;
+  font-size: 11px;
+  margin-top: 6px;
+}
+.section-emblem {
+  color: #6c785f;
+}
+@media (max-width: 600px) {
+  .feedback-thread {
+    padding: 18px;
+  }
+  .feedback-heading {
+    flex-wrap: wrap;
+  }
+  .feedback-heading > .badge {
+    margin-left: 43px;
+  }
+  .reply-form > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .review-queue > a {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

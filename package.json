@@ -21,6 +21,7 @@
     "db:migration:create": "pnpm --filter @trace/api db:migration:create",
     "db:migrate": "pnpm --filter @trace/api db:migrate",
     "db:rollback": "pnpm --filter @trace/api db:rollback",
-    "worker:email": "pnpm --filter @trace/api worker:email"
+    "worker:email": "pnpm --filter @trace/api worker:email",
+    "dev:web": "pnpm --filter @trace/web dev"
   }
 }

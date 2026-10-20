@@ -1,0 +1,16 @@
+.settings-panel {
+  max-width: 720px;
+}
+.settings-panel > svg {
+  color: #6c785f;
+  margin-bottom: 20px;
+}
+.settings-panel p {
+  font-size: 13px;
+  color: #6c785f;
+}
+.settings-panel h2 {
+  font-family: Newsreader, serif;
+  font-size: 29px;
+  font-weight: 400;
+}
