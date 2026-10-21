@@ -116,6 +116,9 @@ export function AppShell() {
           ))}
         </div>
         <div className="sidebar-bottom">
+          <Link className="nav-item" to="/workspace">
+            Your real projects
+          </Link>
           <div className="sidebar-note">
             <Sparkles size={19} />
             <strong>The journey matters.</strong>
@@ -124,6 +127,10 @@ export function AppShell() {
               See your process portfolio <ArrowUpRight size={14} />
             </Link>
           </div>
+          <Link className="nav-item" to="/account" onClick={() => setMenuOpen(false)}>
+            <Settings2 size={18} />
+            Your Trace account
+          </Link>
           <button className="nav-item" onClick={() => setHelpOpen(true)}>
             <CircleHelp size={18} />
             Getting started

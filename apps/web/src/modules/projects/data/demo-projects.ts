@@ -58,6 +58,7 @@ export function createDemoProjects(): Project[] {
       color: 'sage',
       state: 'active',
       route: 'in-platform',
+      projectType: 'individual',
       reviewerJoined: true,
       reviewerEmail: 'maya.patel@example.com',
       description:
@@ -124,6 +125,7 @@ export function createDemoProjects(): Project[] {
       color: 'peach',
       state: 'active',
       route: 'external',
+      projectType: 'individual',
       reviewerJoined: true,
       reviewerEmail: 'maya.patel@example.com',
       description:
@@ -161,6 +163,7 @@ export function createDemoProjects(): Project[] {
       color: 'blue',
       state: 'proposal-review',
       route: 'in-platform',
+      projectType: 'individual',
       reviewerJoined: true,
       reviewerEmail: 'maya.patel@example.com',
       description:
@@ -244,10 +247,12 @@ export function makeProject(
   templateIndex: number,
   route: Project['route'],
   reviewerEmail: string,
+  projectType: Project['projectType'] = 'individual',
 ): Project {
   const template = demoTemplates[templateIndex] ?? demoTemplates[0]!;
   const id = crypto.randomUUID();
   return {
+    projectType,
     id,
     title,
     description,

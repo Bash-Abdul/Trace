@@ -22,6 +22,7 @@
     "db:migrate": "pnpm --filter @trace/api db:migrate",
     "db:rollback": "pnpm --filter @trace/api db:rollback",
     "worker:email": "pnpm --filter @trace/api worker:email",
-    "dev:web": "pnpm --filter @trace/web dev"
+    "dev:web": "pnpm --filter @trace/web dev",
+    "dev:db": "pnpm --filter @trace/api dev:db"
   }
 }

@@ -8,14 +8,35 @@ const frontendUrl = z
   .url()
   .refine((value) => {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash;
-  }, 'Use an HTTPS frontend URL without credentials, query, or fragment');
-const emailConfiguration = z.object({
-  RESEND_API_KEY: z.string().trim().min(1),
-  EMAIL_FROM: z.string().email(),
-  EMAIL_VERIFICATION_URL: frontendUrl,
-  EMAIL_PASSWORD_RESET_URL: frontendUrl,
-});
+    const localHttp =
+      url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    return (
+      (url.protocol === 'https:' || localHttp) &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    );
+  }, 'Use HTTPS or a development loopback URL without credentials, query, or fragment');
+const emailConfiguration = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
+    RESEND_API_KEY: z.string().trim().min(1),
+    EMAIL_FROM: z.string().email(),
+    EMAIL_VERIFICATION_URL: frontendUrl,
+    EMAIL_PASSWORD_RESET_URL: frontendUrl,
+  })
+  .superRefine((config, context) => {
+    for (const field of ['EMAIL_VERIFICATION_URL', 'EMAIL_PASSWORD_RESET_URL'] as const) {
+      if (config.NODE_ENV !== 'development' && new URL(config[field]).protocol !== 'https:') {
+        context.addIssue({
+          code: 'custom',
+          path: [field],
+          message: 'HTTPS is required outside development',
+        });
+      }
+    }
+  });
 
 export function createResendEmailProvider(
   input: NodeJS.ProcessEnv,
@@ -25,7 +46,7 @@ export function createResendEmailProvider(
   if (!result.success) {
     // Do not include configuration values (especially credentials) in errors.
     throw new Error(
-      'Set RESEND_API_KEY, EMAIL_FROM, and valid HTTPS EMAIL_VERIFICATION_URL / EMAIL_PASSWORD_RESET_URL',
+      'Set RESEND_API_KEY, EMAIL_FROM, and valid EMAIL_VERIFICATION_URL / EMAIL_PASSWORD_RESET_URL (HTTPS, or localhost HTTP in development)',
     );
   }
   const config = result.data;
@@ -35,8 +56,8 @@ export function createResendEmailProvider(
     reset: boolean,
   ) {
     const url = new URL(reset ? config.EMAIL_PASSWORD_RESET_URL : config.EMAIL_VERIFICATION_URL);
-    // A fragment keeps the token out of HTTP access logs. The future frontend
-    // will read it and POST it to the verification endpoint.
+    // A fragment keeps the token out of HTTP access logs. The frontend
+    // reads it and POST it to the verification endpoint.
     url.hash = new URLSearchParams({ token: payload.verificationToken }).toString();
     const response = await sendRequest('https://api.resend.com/emails', {
       method: 'POST',

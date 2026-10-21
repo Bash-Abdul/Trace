@@ -27,8 +27,8 @@ export function SettingsPage() {
             : 'Browser storage is unavailable. Changes will last only for this visit.'}
         </p>
         <p>
-          No backend connection, real invitations, file uploads, or authentication are enabled here.
-          Your existing backend is separate.
+          These sample projects have no backend connection, real invitations, or file uploads. Sign
+          in through Your Trace account to manage your real account and sessions.
         </p>
         <hr />
         <h3>Start the demo again</h3>

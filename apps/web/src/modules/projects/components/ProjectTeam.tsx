@@ -8,16 +8,26 @@ export function ProjectTeam({ project }: { project: Project }) {
     <div className="panel">
       <div className="panel-heading">
         <h2>The people behind the project</h2>
-        <p>Roles belong to this project. One Author, one active main Reviewer.</p>
+        <p>
+          {project.projectType === 'group'
+            ? 'Group project · Shared authorship, one lead author, one active main Reviewer.'
+            : 'Individual project · One Author, one active main Reviewer.'}
+        </p>
       </div>
       <div className="team-row">
         <Avatar />
         <div>
           <strong>Bashir Abdul</strong>
-          <small>Permanent Author</small>
+          <small>{project.projectType === 'group' ? 'Lead Author' : 'Author'}</small>
         </div>
         <Badge tone="green">Joined</Badge>
       </div>
+      {project.projectType === 'group' && (
+        <p className="soft-note">
+          You are the first author. Teammate invitations and shared editing are not available in
+          this demo yet.
+        </p>
+      )}
       <div className="team-row">
         <Avatar name="Dr. Maya Patel" />
         <div>

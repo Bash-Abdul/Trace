@@ -15,11 +15,19 @@ export function NewProjectPage() {
   const [description, setDescription] = useState('');
   const [email, setEmail] = useState('maya.patel@example.com');
   const [route, setRoute] = useState<Project['route']>('in-platform');
+  const [projectType, setProjectType] = useState<Project['projectType']>('individual');
   const chosen = demoTemplates[template]!;
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim() || !description.trim()) return;
-    const project = makeProject(title.trim(), description.trim(), template, route, email);
+    const project = makeProject(
+      title.trim(),
+      description.trim(),
+      template,
+      route,
+      email,
+      projectType,
+    );
     addProject(project);
     setPersona('author');
     notify('Your demo project is ready. No invitation email was sent.');
@@ -91,6 +99,34 @@ export function NewProjectPage() {
             </>
           ) : (
             <form onSubmit={submit} className="panel form-panel">
+              <fieldset>
+                <legend>Who is working on this project?</legend>
+                {(['individual', 'group'] as const).map((type) => (
+                  <label className="radio-card" key={type}>
+                    <input
+                      type="radio"
+                      name="projectType"
+                      value={type}
+                      checked={projectType === type}
+                      onChange={() => setProjectType(type)}
+                    />
+                    <span>
+                      <strong>{type === 'individual' ? 'Individual' : 'Group'}</strong>
+                      <small>
+                        {type === 'individual'
+                          ? 'You author and submit your own work.'
+                          : 'Work together as authors. You lead the team and submit its work.'}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+                {projectType === 'group' && (
+                  <p className="muted">
+                    This demo saves your group choice. Teammate invitations and shared editing are
+                    coming with the project backend.
+                  </p>
+                )}
+              </fieldset>
               <label>
                 Project title
                 <input

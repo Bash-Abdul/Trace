@@ -4,7 +4,7 @@ Trace is a project supervision and evidence platform for long-running assessed p
 
 It gives an Author and their assigned Reviewers a structured record of project expectations, milestone submissions, evidence, feedback, revisions, decisions, deliverables, and final approval. The resulting project history becomes a printable Process Portfolio.
 
-> **Status:** Phase 1 is in progress. The API implements registration/verification, login, cookie sessions, logout, password reset, and session revocation, with CSRF checks, rate limits, security audit events, and an email outbox worker. Frontend auth pages, live email configuration, and project-scoped access remain.
+> **Status:** Phase 1 is in progress. The API implements registration/verification, login, cookie sessions, logout, password reset, and session revocation, with CSRF checks, rate limits, security audit events, and an email outbox worker. Web auth pages and account/session management are connected to the API. Live email configuration and real project-scoped access remain.
 
 ## Why Trace?
 
@@ -35,7 +35,7 @@ Trace connects those records without trying to replace the tools used to create 
 
 ## Project roles
 
-- **Author:** The permanent person responsible for the assessed work. A Reviewer may create the project and invite the Author.
+- **Author:** The person contributing assessed work. Choose Individual (one permanent Author) or Group (multiple Authors with one lead) at project creation. Group Authors share drafts and evidence; the lead manages author invitations and submits work. A Reviewer may create a project and invite its initial Author/lead.
 - **Active main Reviewer:** The single Reviewer authorised to make proposal, milestone, change, and final-approval decisions.
 - **Dormant sub-reviewer:** A read-only project member who may be placed in an explicit Reviewer succession order.
 
@@ -146,7 +146,7 @@ Start the API in watch mode:
 pnpm dev:api
 ```
 
-The API defaults to `http://localhost:3000`. Runtime probes are available at:
+The example API environment uses `http://127.0.0.1:3001`, matching the web development proxy. Runtime probes are available at:
 
 ```text
 GET /health
@@ -155,7 +155,7 @@ GET /ready
 
 ## Web visual prototype
 
-Run `pnpm dev:web` and open http://127.0.0.1:5173. The responsive prototype uses dummy data and offers Author / Reviewer perspectives, project creation, milestone revisions, feedback, and printable portfolios. Changes stay in browser storage; it does not connect to the API yet.
+Run `pnpm dev:web` and open http://127.0.0.1:5173. The responsive prototype uses dummy data and offers Author / Reviewer perspectives, project creation, milestone revisions, feedback, and printable portfolios. Sample project changes stay in browser storage. Real authentication is available through Sign in; see the web README for starting the API with the matching browser origin.
 
 See [web setup and module architecture](apps/web/README.md) for scope, checks, and integration notes.
 
@@ -215,3 +215,20 @@ The authoritative product rules, architecture, application design, data model, s
 ## Non-goals
 
 Trace does not write project content, assess quality, grade work, detect plagiarism, replace creation tools, or provide institution-wide workflow administration.
+
+
+### Native PostgreSQL on Linux / WSL
+
+If port 5432 belongs to another local database, Trace can use its own persistent cluster. This option requires installed PostgreSQL tools (`pg_config`, `initdb`, `pg_ctl`, `psql`, `createdb`) and does not need Docker or administrator access.
+
+Set the local API environment's `DATABASE_URL` and `TEST_DATABASE_URL` to host `127.0.0.1`, port `55433`, retaining their usernames, passwords, and database names. Keep `PORT=3001` and `APP_ORIGIN=http://127.0.0.1:5173`.
+
+```sh
+pnpm dev:db
+pnpm db:migrate
+pnpm dev:api
+# In another terminal:
+pnpm dev:web
+```
+
+`pnpm dev:db` initializes only this repository's `.local/postgres` when it does not exist, then starts it if stopped. Run it again after a reboot. Its data persists in that ignored directory; it is not a temporary test database and should be included in your local backups. It does not alter or stop system PostgreSQL. Docker users can continue using `compose.yaml` instead.

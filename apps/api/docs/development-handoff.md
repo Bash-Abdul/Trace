@@ -2,6 +2,38 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Current implementation — October 21, 2026
+
+The project workflow is now implemented locally through proposal activation. See
+[projects.md](./projects.md) for endpoints, roles and limitations. This update
+supersedes the historical checkpoint sections below; these changes are not yet
+committed or pushed.
+
+- Real signed-in workspace: `/workspace`; browser-only samples remain separate.
+- Individual/group creation, template copies, memberships, draft editing,
+  invitation links, acceptance/cancellation/reissue, proposal revisions and decisions.
+- Existing session, CSRF and origin protections apply to all project operations.
+- Follow the requested module structure: tests, types, schema, repository, service,
+  controller, routes; use the existing `validate()` middleware.
+- Invitations are manually shared links for now; email is not sent for them.
+- Auth operational follow-up: https://github.com/Bash-Abdul/Trace/issues/1.
+- Next: milestone evidence and submission/review workflows, followed by final
+  approval and portfolios. Membership removal/lead transfer and Reviewer
+  succession remain future work.
+
+### Verification for this update
+
+- API unit/HTTP: 43 passed; web unit: 7 passed.
+- PostgreSQL integration: 32 passed, including 8 project workflow tests.
+- Browser regression: 8 passed; isolated live API/browser: 2 passed, including
+  a three-account group creation, shared draft, revision and approval workflow.
+- Build, API/web lint, typecheck and changed-source formatting checks passed.
+- Desktop/mobile real-project screenshots inspected; mobile overflow check passed.
+- Additive project migration applied to local development and isolated test databases.
+- No commit or push performed for this update.
+
+## Historical checkpoint
+
 ## Current position
 
 - Phase 0: complete
@@ -56,7 +88,8 @@ The [backend engineering plan](./backend-engineering-plan.md) is the authoritati
    the remaining auth verification gate, not evidence of a known failing auth flow.
 2. Build project and membership migrations, project creation/list/detail routes,
    and permissions using the existing authenticated-session transaction boundary.
-   Preserve the permanent Author, exactly one active main Reviewer when assigned,
+   Support Individual / Group selection at creation, permanent individual authorship,
+   group author memberships with one lead, attributed contributions, exactly one active main Reviewer when assigned,
    and read-only dormant Reviewer rules from the engineering plan.
 3. Add email-bound invitations: issuance, expiry, cancellation, and atomic acceptance
    by the verified invited account. Test replay, email mismatch, role uniqueness,
@@ -141,3 +174,22 @@ isolation tests. For mobile, first establish a new, reviewable screen/interactio
 baseline and decide the client type before changing the browser-cookie auth
 contract. The original client stack is not recoverable from the checked local
 history for `apps/mobile` or `apps/web`.
+
+
+## Web auth integration — October 21, 2026
+
+`apps/web` now provides registration, verification/resend, login, password reset, and protected `/account` session management against the existing cookie-session API. Public sample project routes remain explicitly separate from real account data. Run the API with `APP_ORIGIN=http://127.0.0.1:5173` and the web with `pnpm dev:web`; Vite proxies `/api` to port 3001. No local secrets or email delivery settings were changed.
+
+The auth module owns its typed API boundary and in-memory session state. Action tokens are removed from the URL and consumed only on confirmation; protected mutations carry session CSRF tokens. See `apps/web/README.md` for deployment, email-link configuration, and isolated live browser-test instructions.
+
+Next implementation milestone: real project creation, invitation acceptance, and proposal activation. Do not treat the browser demo project state or persona selector as real authorization or persisted project data.
+
+## Group projects decision — 2026-10-21
+
+Creation offers Individual or Group independently of template and approval route.
+Group authors share drafts and evidence; one lead manages author invitations and
+submits shared work. Preserve actor attribution and historical contributions when
+membership changes. See the engineering plan for permissions and invariants.
+The web demo saves this choice and shows the lead role; real invitations, shared
+editing, and backend permissions remain to be implemented. Existing demo records
+default to Individual without resetting browser storage.

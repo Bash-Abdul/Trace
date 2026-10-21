@@ -30,6 +30,7 @@ async function startServer(): Promise<void> {
       {
         environment: env.NODE_ENV,
         port: env.PORT,
+        browserOrigin: env.APP_ORIGIN,
       },
       'Trace API started',
     );

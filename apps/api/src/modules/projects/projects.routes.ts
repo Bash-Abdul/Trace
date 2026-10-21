@@ -1,0 +1,60 @@
+import { Router } from 'express';
+import { validate } from '../../middleware/validate.js';
+import {
+  authBrowserControls,
+  authRateLimit,
+  requireMutationOrigin,
+} from '../auth/auth.middleware.js';
+import * as controller from './projects.controller.js';
+import {
+  createProjectSchema,
+  decisionSchema,
+  draftSchema,
+  invitationSchema,
+  tokenSchema,
+  versionSchema,
+  projectParamsSchema,
+  invitationParamsSchema,
+  proposalParamsSchema,
+} from './projects.schema.js';
+
+export const projectsRouter = Router();
+projectsRouter.use(authBrowserControls, authRateLimit);
+projectsRouter.use((request, response, next) => {
+  if (request.method === 'GET') return next();
+  return requireMutationOrigin(request, response, next);
+});
+projectsRouter.get('/templates', controller.listTemplates);
+projectsRouter.get('/', controller.listProjects);
+projectsRouter.post('/', validate({ body: createProjectSchema }), controller.createProject);
+projectsRouter.post(
+  '/invitations/accept',
+  validate({ body: tokenSchema }),
+  controller.acceptInvitation,
+);
+projectsRouter.get('/:id', validate({ params: projectParamsSchema }), controller.getProject);
+projectsRouter.patch(
+  '/:id',
+  validate({ params: projectParamsSchema, body: draftSchema }),
+  controller.updateDraft,
+);
+projectsRouter.post(
+  '/:id/invitations',
+  validate({ params: projectParamsSchema, body: invitationSchema }),
+  controller.invite,
+);
+projectsRouter.delete(
+  '/:id/invitations/:invitationId',
+  validate({ params: invitationParamsSchema }),
+  controller.cancelInvitation,
+);
+projectsRouter.post(
+  '/:id/proposals',
+  validate({ params: projectParamsSchema, body: versionSchema }),
+  controller.submitProposal,
+);
+projectsRouter.post(
+  '/:id/proposals/:proposalId/decision',
+  validate({ params: proposalParamsSchema, body: decisionSchema }),
+  controller.decideProposal,
+);

@@ -12,6 +12,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "migrations/**/*.ts"],
+  "include": ["src/**/*.ts", "migrations/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

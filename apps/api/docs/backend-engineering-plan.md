@@ -36,7 +36,7 @@ The MVP excludes AI assessment or generation, grading, plagiarism detection, ins
 - **Project:** The permission, workflow, and history boundary.
 - **Institution metadata:** Descriptive information attached to a project, never an access boundary.
 - **Participant:** A user explicitly assigned to a project.
-- **Author:** The permanent person responsible for the assessed work. The Author need not create the project record; a Reviewer may create it and invite the Author.
+- **Author:** A project member contributing assessed work. Individual projects have one permanent Author; group projects have multiple Authors and one designated lead. A Reviewer may create the project and invite its initial Author/lead.
 - **Active main Reviewer:** The single Reviewer currently authorised to perform Reviewer workflow actions.
 - **Dormant sub-reviewer:** A read-only Reviewer assigned to the project and optionally eligible for succession.
 - **Approval route:** `IN_PLATFORM_PROPOSAL` or `EXTERNALLY_APPROVED`.
@@ -71,14 +71,16 @@ The MVP excludes AI assessment or generation, grading, plagiarism detection, ins
 | Manage succession and promote a dormant Reviewer | No | Yes | No |
 | Receive ordinary workflow notifications | Yes | Yes | No |
 
+For groups, the Author column applies to all accepted Authors for viewing, draft edits, evidence contributions, feedback responses, and notifications. Proposal submission, milestone submission, major-change proposals, final deliverable submission, and final-approval requests are reserved for the lead. Review decisions apply to the shared project submission. Use optimistic concurrency to prevent silent overwrites of shared drafts. Portfolios show team membership and attributed contributions; historical authorship survives removal. Removed members lose future access. Authors cannot also review their own project.
+
 Dormant sub-reviewers receive succession notices only when directly involved in a transfer. This is a narrow exception to their exclusion from ordinary workflow notifications. No role grants access to unrelated projects.
 
 ## 4. Membership, authorship, and invitation invariants
 
-- A project has exactly one Author role slot. During setup, that slot may be awaiting acceptance of an email-bound invitation.
+- Creation requires a project type: `INDIVIDUAL` or `GROUP`, separate from the approval route. Individual projects have one Author; group projects have author memberships and exactly one lead once assigned. During setup the initial Author/lead may be awaiting an email-bound invitation.
 - The user who creates the project is recorded separately as `created_by_user_id` and may be the Author or a Reviewer.
-- Once the Author accepts the role, their `author_user_id` is immutable.
-- If another person must become the Author, a new project must be created. History is not transferred.
+- Individual authorship is permanent after acceptance. Group authorship is represented by memberships, not a single `author_user_id`. Record who joined, left, contributed, edited, and submitted; membership removal never deletes historical attribution.
+- Replacing an individual Author requires a new project. For groups, the lead manages author invitations and removal; lead transfer must be atomic, audited, and target an accepted Author. The current lead cannot leave or be removed until a replacement is assigned.
 - An active project has exactly one active main Reviewer and may have zero or more dormant sub-reviewers.
 - A user may hold different roles across any number of concurrent projects.
 - Access always requires explicit membership; institution metadata and Reviewer status have no global effect.
@@ -144,7 +146,7 @@ NOT_STARTED -> DRAFT -> AWAITING_REVIEW
                                 -> new DRAFT version -> AWAITING_REVIEW
 ```
 
-Only the Author edits drafts and submits versions. Only the current active main Reviewer approves or requests revision. A decision identifies the exact version and fails if it is stale or the actor has lost active-main status. Evidence items have no independent approval state; they are included in an approved submission.
+All current Authors may edit drafts and contribute evidence. Only the individual Author or group lead submits immutable versions on behalf of the project. Only the current active main Reviewer approves or requests revision. A decision identifies the exact version and fails if it is stale or the actor has lost active-main status. Evidence items have no independent approval state; they are included in an approved submission.
 
 Feedback can target a submission version, project-change proposal, final-approval request, or another explicitly supported subject.
 
@@ -303,7 +305,7 @@ Core authentication tables are `users`, `user_credentials`, `user_verified_email
 ## 15. Application modules
 
 - **Authentication:** registration, verification, login, sessions, logout, reset, CSRF, security audit, and authentication email.
-- **Projects and memberships:** project creation, creator provenance, permanent Author assignment, roles, lifecycle, institution metadata, and central authorisation.
+- **Projects and memberships:** project creation, creator provenance, individual or group authorship and lead assignment, roles, lifecycle, institution metadata, and central authorisation.
 - **Invitations:** create, deliver, copy, expire, revoke, and atomically accept email-bound invitations.
 - **Proposals and activation:** immutable proposal versions, decisions, and both activation routes.
 - **Templates and structure:** seed templates, copy structure, ordered milestones, minor history, and major changes.
@@ -333,9 +335,9 @@ Principal tables:
 - Final workflow: deliverable submissions and versions, final requests, checklist snapshots, final decisions, and portfolio snapshots.
 - Cross-cutting: `audit_events`, `notifications`, `outbox_jobs`, `idempotency_records`.
 
-`projects.created_by_user_id` records provenance. `projects.author_user_id` may be null only while the Author role is awaiting invitation acceptance and becomes immutable when filled. A project must always have exactly one Author role slot represented by the accepted Author or its single active invitation.
+`projects.created_by_user_id` records provenance. `projects.project_type` records `INDIVIDUAL` or `GROUP`. Use author memberships with an explicit lead designation. Setup may await the initial Author/lead invitation; activation requires an accepted individual Author or group lead and an active main Reviewer. Additional group invitations do not block activation. Project type is fixed after creation for the initial release; conversion is not part of this scope.
 
-Database constraints enforce one accepted Author, one active main Reviewer, unique eligible succession positions, one logical submission per milestone, unique version numbers, same-project and same-milestone evidence mappings, one current draft, and exact reviewed versions. Use opaque public identifiers, optimistic `version` columns, server timestamps, and JSON only for bounded snapshots rather than primary relational structure.
+Database constraints enforce one Author for individual projects, unique author memberships for groups, exactly one lead once assigned, one active main Reviewer, unique eligible succession positions, one logical submission per milestone, unique version numbers, same-project and same-milestone evidence mappings, one current draft, and exact reviewed versions. Use opaque public identifiers, optimistic `version` columns, server timestamps, and JSON only for bounded snapshots rather than primary relational structure.
 
 Access PostgreSQL through `pg` using parameterised raw SQL. Use `node-pg-migrate` for explicit, version-controlled schema changes, including partial unique indexes and constraints. Application startup must not apply migrations automatically.
 
@@ -447,9 +449,9 @@ Decisions are resolved just before the work that depends on them rather than fro
 
 ### Phase 1 — Foundation, authentication, and access boundary
 
-Build the TypeScript/Express foundation, `pg` database layer, `node-pg-migrate` migrations, full application-owned authentication workflow, project creation, creator provenance, permanent Author role assignment, memberships, invitations, project-scoped authorisation, audit/logging foundation, CI, health endpoints, and the storage interface/configuration boundary only.
+Build the TypeScript/Express foundation, `pg` database layer, `node-pg-migrate` migrations, full application-owned authentication workflow, project creation, creator provenance, individual or group authorship and lead assignment, memberships, invitations, project-scoped authorisation, audit/logging foundation, CI, health endpoints, and the storage interface/configuration boundary only.
 
-Complete when authentication security tests pass, invitation acceptance is atomic, cross-project access tests pass, Author replacement is impossible, role uniqueness survives concurrency, and no upload or object-storage implementation has been introduced.
+Complete when authentication security tests pass, invitation acceptance is atomic, cross-project access tests pass, individual Author replacement is impossible and group lead transfers preserve attribution, role uniqueness survives concurrency, and no upload or object-storage implementation has been introduced.
 
 ### Phase 2 — Templates, proposals, and activation
 

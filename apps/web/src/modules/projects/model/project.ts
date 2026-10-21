@@ -43,6 +43,7 @@ const milestoneSchema = z.object({
   ),
 });
 export const projectSchema = z.object({
+  projectType: z.enum(['individual', 'group']).default('individual'),
   id: z.string(),
   title: z.string(),
   description: z.string(),

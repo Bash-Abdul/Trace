@@ -95,6 +95,57 @@ describe('Resend adapter', () => {
       createResendEmailProvider(config, transport).sendVerification(payload, 'key'),
     ).rejects.toThrow('Email provider rejected delivery');
   });
+  it('sends local verification and reset links in explicit development mode', async () => {
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+    const provider = createResendEmailProvider(
+      {
+        ...config,
+        NODE_ENV: 'development',
+        EMAIL_VERIFICATION_URL: 'http://localhost:5173/verify-email',
+        EMAIL_PASSWORD_RESET_URL: 'http://localhost:5173/reset-password',
+      },
+      transport,
+    );
+    await provider.sendVerification(payload, 'verify');
+    await provider.sendPasswordReset(payload, 'reset');
+    expect(transport.mock.calls[0]![1]?.body).toContain(
+      'http://localhost:5173/verify-email#token=secret-token',
+    );
+    expect(transport.mock.calls[1]![1]?.body).toContain(
+      'http://localhost:5173/reset-password#token=secret-token',
+    );
+  });
+  it.each(['production', 'test', undefined])('rejects local HTTP when NODE_ENV is %s', (mode) => {
+    expect(() =>
+      createResendEmailProvider({
+        ...config,
+        NODE_ENV: mode,
+        EMAIL_VERIFICATION_URL: 'http://localhost:5173/verify-email',
+      }),
+    ).toThrow();
+    expect(() =>
+      createResendEmailProvider({
+        ...config,
+        NODE_ENV: mode,
+        EMAIL_PASSWORD_RESET_URL: 'http://127.0.0.1:5173/reset-password',
+      }),
+    ).toThrow();
+  });
+  it.each([
+    'http://example.com/verify-email',
+    'http://localhost.example.com/verify-email',
+    'http://localhost:5173/verify-email?token=x',
+    'http://localhost:5173/verify-email#token=x',
+    'http://user:pass@localhost:5173/verify-email',
+  ])('rejects unsafe development URL %s', (url) => {
+    expect(() =>
+      createResendEmailProvider({
+        ...config,
+        NODE_ENV: 'development',
+        EMAIL_VERIFICATION_URL: url,
+      }),
+    ).toThrow();
+  });
   it('rejects missing credentials and unsafe verification URLs', () => {
     expect(() => createResendEmailProvider({})).toThrow('Set RESEND_API_KEY');
     expect(() =>

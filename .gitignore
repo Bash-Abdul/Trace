@@ -43,3 +43,6 @@ uploads/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Machine-local development database
+.local/

@@ -1,24 +1,22 @@
 # Authentication API
 
 Implemented September 18, 2026. The API flow is implemented through account-wide
-session revocation. Browser/mobile screens and live email delivery have not been
-recovered or implemented in this checkout.
+session revocation. Web auth screens and protected account/session controls are implemented in `apps/web` (October 21, 2026). Mobile auth screens and live email configuration remain.
 
 ## Setup
 
 1. Apply the new migration with `pnpm db:migrate` against your development database.
    Implementation verification applied it only to the guarded test database.
-2. Set `APP_ORIGIN` to the exact frontend origin (no trailing slash). Development
-   defaults to `http://localhost:3000`. Production requires an explicit HTTPS origin.
+2. Set `APP_ORIGIN` to the exact frontend origin (no trailing slash). For the Vite web app use `http://127.0.0.1:5173`; the API parser fallback remains `http://localhost:3000`. Production requires an explicit HTTPS origin.
 3. For live email, configure `RESEND_API_KEY`, `EMAIL_FROM`,
    `EMAIL_VERIFICATION_URL`, and `EMAIL_PASSWORD_RESET_URL`. Both URLs must be HTTPS
-   frontend pages without query strings or fragments; the sender must be verified.
+   frontend pages without query strings or fragments (explicit development mode also allows HTTP loopback hosts); the sender must be verified.
 4. Run `pnpm worker:email` to process up to 100 jobs, or invoke the same entry point
    from an external scheduler. Compiled entry point: `node apps/api/dist/email-worker.js`.
    No scheduler is provisioned by this change; the API never sends email on startup.
 
 No secrets were populated and no real emails were sent during implementation.
-Do not enable delivery to nonexistent frontend pages.
+The web frontend implements `/verify-email` and `/reset-password`. Configure their deployed HTTPS URLs before enabling delivery. See [web setup](../../web/README.md) for local proxy configuration.
 
 ## Endpoints
 

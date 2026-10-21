@@ -10,7 +10,7 @@ export default tseslint.config(
   ...tseslint.configs.recommendedTypeChecked,
   {
     // Apply the same type-aware rules to API and migration source files.
-    files: ['src/**/*.ts', 'migrations/**/*.ts'],
+    files: ['src/**/*.ts', 'migrations/**/*.ts', 'scripts/**/*.ts'],
     languageOptions: {
       globals: globals.node,
       parserOptions: {

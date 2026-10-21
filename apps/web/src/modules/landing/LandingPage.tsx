@@ -142,10 +142,15 @@ export function LandingPage() {
           <a href="#built-for">Who it’s for</a>
           <a href="#portfolio">The portfolio</a>
         </nav>
-        <Link className="button primary" to="/overview">
-          Explore the demo
-          <ArrowUpRight size={15} />
-        </Link>
+        <div className="landing-account-actions">
+          <Link className="landing-sign-in" to="/login">
+            Sign in
+          </Link>
+          <Link className="button primary" to="/overview">
+            Explore the demo
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
       </header>
       <main id="landing-main">
         <section className="landing-hero landing-container">

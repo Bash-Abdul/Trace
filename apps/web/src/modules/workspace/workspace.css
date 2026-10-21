@@ -1,0 +1,137 @@
+.live-workspace {
+  min-height: 100vh;
+}
+.live-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.4rem 4%;
+  border-bottom: 1px solid var(--border, #e3e6df);
+  background: #fffefb;
+  flex-wrap: wrap;
+}
+.live-header nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+}
+.live-header nav a {
+  font-size: 0.85rem;
+}
+.live-header small {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.live-content {
+  max-width: 1240px;
+  margin: auto;
+  padding: 48px 32px;
+}
+.live-content .page-heading h1 {
+  overflow-wrap: anywhere;
+}
+.live-project-grid,
+.live-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.live-project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px;
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.live-project-card:hover {
+  border-color: #668872;
+}
+.live-project-card h2 {
+  margin: 0;
+}
+.live-project-card p {
+  line-height: 1.65;
+}
+.live-project-card footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  font-size: 0.8rem;
+}
+.live-empty {
+  padding: 48px;
+  text-align: center;
+}
+.live-empty p {
+  margin: 20px auto;
+  max-width: 520px;
+}
+.live-content .form-panel {
+  gap: 20px;
+  min-width: 0;
+}
+.live-content .form-panel h2,
+.live-content .form-panel h3 {
+  margin: 0;
+}
+.live-content .form-panel ul,
+.live-content .form-panel ol {
+  padding-left: 24px;
+  line-height: 1.85;
+}
+.live-content .form-panel select,
+.live-content .form-panel input {
+  max-width: 100%;
+}
+.live-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid #e3e6df;
+  padding-top: 20px;
+}
+.live-section {
+  margin-top: 24px;
+}
+.live-section details {
+  border-bottom: 1px solid #e3e6df;
+  padding: 12px 0;
+}
+.live-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.live-events li {
+  margin-bottom: 12px;
+}
+.live-events span {
+  display: block;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.live-content .team-row {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .live-content {
+    padding: 28px 18px;
+  }
+  .live-project-grid,
+  .live-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .live-header {
+    gap: 16px;
+  }
+  .live-header small {
+    width: 100%;
+    margin-left: 0;
+  }
+  .live-empty {
+    padding: 28px;
+  }
+}
