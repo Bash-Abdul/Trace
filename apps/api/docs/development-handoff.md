@@ -2,12 +2,49 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Backend refactor checkpoint — October 22, 2026
+
+The working tree refactors Projects and its session boundary while preserving the
+frontend routes and API response fields. Project controllers return typed HTTP
+results; reusable auth middleware owns session validation and mutation commit.
+Project reads no longer hold account/project locks or request-long transactions.
+Resource permissions stay in services; SQL stays in repositories. Draft writes
+preserve IDs and use set-based updates; read details use a single statement.
+
+Migration `1792600000001_preserve-project-structure` adds deferred ordering
+constraints, a history index, and provenance/proposal immutability constraints.
+See [projects.md](./projects.md) for read/revocation semantics and the compatible
+optional item-ID extension. The existing local edit in `revokeSession` was retained.
+No new dependency, framework or ORM was introduced.
+
+Verification: 54 API unit/HTTP tests, 38 PostgreSQL integration tests and both
+live browser tests passed. The browser tests exercise the full auth lifecycle
+and the three-account group invitation, revision and approval flow. API lint,
+typecheck, API/web builds and `git diff --check` passed. The migration is applied
+to both the isolated test database and local development database.
+
+This checkpoint includes the backend refactor and dependency fixes below. The
+preceding frontend integration and project workflow were committed as `359adcd`.
+
+CI audit follow-up: updated proxy-addr, brace-expansion, source-map-js and Vite
+within their existing dependency ranges. `pnpm audit --audit-level=high` now
+passes with four moderate findings remaining. `pnpm verify` passes, including
+seven web unit tests. Rate-limit email extraction now uses a dedicated Zod
+schema before route validation, preserving throttling for malformed requests.
+The README documents the separate verification and audit commands to run before
+pushing.
+
+Next: improve SQL/function readability, then milestone evidence submissions,
+Reviewer feedback and revisions. Connect the designed `/overview`, `/projects`
+and remaining app pages to real data as their backend features become available;
+retire the separate `/workspace` flow once those pages cover the live workflows.
+
 ## Current implementation — October 21, 2026
 
 The project workflow is now implemented locally through proposal activation. See
 [projects.md](./projects.md) for endpoints, roles and limitations. This update
-supersedes the historical checkpoint sections below; these changes are not yet
-committed or pushed.
+supersedes the historical checkpoint sections below; these changes were committed
+and pushed as `359adcd` before the refactor above.
 
 - Real signed-in workspace: `/workspace`; browser-only samples remain separate.
 - Individual/group creation, template copies, memberships, draft editing,
@@ -30,7 +67,7 @@ committed or pushed.
 - Build, API/web lint, typecheck and changed-source formatting checks passed.
 - Desktop/mobile real-project screenshots inspected; mobile overflow check passed.
 - Additive project migration applied to local development and isolated test databases.
-- No commit or push performed for this update.
+- Committed and pushed as `359adcd`.
 
 ## Historical checkpoint
 

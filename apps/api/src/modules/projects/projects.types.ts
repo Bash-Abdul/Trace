@@ -22,6 +22,13 @@ export type ProjectStatus =
   'SETUP' | 'PROPOSAL_IN_REVIEW' | 'PROPOSAL_CHANGES_REQUESTED' | 'PROPOSAL_REJECTED' | 'ACTIVE';
 export interface ProjectRecord {
   id: string;
+  created_by_user_id: string;
+  template_key: string;
+  template_version: number;
+  created_at: Date;
+  updated_at: Date;
+  activated_at: Date | null;
+  activated_version: number | null;
   title: string;
   description: string;
   project_type: 'INDIVIDUAL' | 'GROUP';
@@ -88,4 +95,29 @@ export interface ProjectDetail extends MemberProject, ProjectStructure {
   invitations: InvitationRecord[];
   proposals: ProposalRecord[];
   events: ProjectEvent[];
+}
+
+// PostgreSQL JSON aggregation serializes timestamps to strings, matching the wire contract.
+type JsonResponse<T> = T extends Date
+  ? string
+  : T extends (infer Item)[]
+    ? JsonResponse<Item>[]
+    : T extends object
+      ? { [Key in keyof T]: JsonResponse<T[Key]> }
+      : T;
+export type ProjectDetailResponse = JsonResponse<ProjectDetail>;
+export interface CreatedInvitation {
+  id: string;
+  expires_at: Date;
+}
+export interface InvitationResponse extends CreatedInvitation {
+  invitationUrl: string;
+}
+export type SavedStructure = Omit<Draft, 'version' | 'milestones' | 'deliverables'> & {
+  milestones: StructureItem[];
+  deliverables: StructureItem[];
+};
+export interface VerifiedAccount {
+  email: string;
+  email_verified_at: Date | null;
 }

@@ -173,13 +173,27 @@ Run commands from the repository root.
 | `pnpm typecheck` | Run strict TypeScript checking |
 | `pnpm test` | Run database-free unit and HTTP tests |
 | `pnpm test:integration` | Apply test migrations and run PostgreSQL integration tests |
-| `pnpm build` | Compile the production API build |
-| `pnpm verify` | Run formatting, linting, type checking, all tests, and the build |
+| `pnpm build` | Build the production API and web app |
+| `pnpm verify` | Run formatting, linting, type checking, unit/integration tests, and builds |
+| `pnpm audit --audit-level=high` | Check dependencies; fail on high or critical vulnerabilities |
 | `pnpm db:migration:create <name>` | Generate a timestamped TypeScript migration |
 | `pnpm db:migrate` | Apply pending development migrations |
 | `pnpm db:rollback` | Roll back the latest development migration |
 
-`pnpm verify` requires Docker PostgreSQL and the `trace_test` database because it includes integration tests.
+`pnpm verify` requires running PostgreSQL and an isolated `trace_test` database
+configured through `TEST_DATABASE_URL` in `apps/api/.env`. Start the configured
+local database with `pnpm dev:db`; Docker is not required for the native setup.
+
+Before pushing, run these from the repository root:
+
+```bash
+pnpm verify
+pnpm audit --audit-level=high
+```
+
+If formatting fails, run `pnpm format`, review its changes, then rerun verification.
+Browser tests are separate (`pnpm --filter @trace/web test:e2e` and
+`pnpm --filter @trace/web test:e2e:live`); `pnpm verify` does not run them.
 
 ## Testing
 

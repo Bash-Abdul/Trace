@@ -12,6 +12,8 @@ import {
   verifyPassword,
 } from './auth-crypto/auth-crypto.js';
 import { sessionCsrfToken } from './auth-policy.js';
+import type { Session, SessionIdentity, LoginResult } from './auth.types.js';
+import * as sessionRepository from './auth.repository.js';
 
 type Purpose = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
 interface User {
@@ -19,14 +21,6 @@ interface User {
   email: string;
   password_hash: string;
   email_verified_at: Date | null;
-}
-interface Session {
-  id: string;
-  user_id: string;
-  csrf_token_hash: string;
-  created_at: Date;
-  idle_expires_at: Date;
-  absolute_expires_at: Date;
 }
 
 export async function audit(
@@ -45,9 +39,10 @@ export async function requestAction(email: string, purpose: Purpose): Promise<vo
   await withTransaction(async (client) => {
     // All account mutations lock the user first, then tokens/sessions, to avoid
     // deadlocks and prevent password-reset/login races.
-    const result = await client.query<User>('SELECT * FROM users WHERE email = $1 FOR UPDATE', [
-      email,
-    ]);
+    const result = await client.query<User>(
+      'SELECT id,email,password_hash,email_verified_at FROM users WHERE email = $1 FOR UPDATE',
+      [email],
+    );
     const user = result.rows[0];
     await audit(
       client,
@@ -72,6 +67,8 @@ export async function requestAction(email: string, purpose: Purpose): Promise<vo
       (user_id, purpose, token_hash, expires_at) VALUES ($1, $2, $3, now() + $4 * interval '1 second') RETURNING id`,
       [user.id, purpose, hashOpaqueToken(rawToken), lifetime],
     );
+    const actionToken = token.rows[0];
+    if (!actionToken) throw new Error('Action token insert returned no record');
     const jobType =
       purpose === 'PASSWORD_RESET' ? 'SEND_PASSWORD_RESET' : 'SEND_EMAIL_VERIFICATION';
     const jobId = await createOutboxJob(client, {
@@ -80,7 +77,7 @@ export async function requestAction(email: string, purpose: Purpose): Promise<vo
         { recipientEmail: email, verificationToken: rawToken },
         jobType,
       ),
-      idempotencyKey: `${purpose.toLowerCase()}:${token.rows[0]!.id}`,
+      idempotencyKey: `${purpose.toLowerCase()}:${actionToken.id}`,
     });
     if (!jobId) throw new Error('Action email job could not be created');
   });
@@ -132,15 +129,25 @@ export async function consumeAction(
 
 // Unknown emails incur the same password-verification primitive as known ones.
 const dummyHash = hashPassword(generateOpaqueToken());
-export async function login(email: string, password: string, previousToken: string | null) {
-  const lookup = await pool.query<User>('SELECT * FROM users WHERE email = $1', [email]);
+export async function login(
+  email: string,
+  password: string,
+  previousToken: string | null,
+): Promise<LoginResult> {
+  const lookup = await pool.query<User>(
+    'SELECT id,email,password_hash,email_verified_at FROM users WHERE email = $1',
+    [email],
+  );
   const candidate = lookup.rows[0];
   const valid = await verifyPassword(candidate?.password_hash ?? (await dummyHash), password);
   const rawToken = generateOpaqueToken();
   const csrfToken = sessionCsrfToken(rawToken);
   const result = await withTransaction(async (client) => {
     const locked = candidate
-      ? await client.query<User>('SELECT * FROM users WHERE id = $1 FOR UPDATE', [candidate.id])
+      ? await client.query<User>(
+          'SELECT id,email,password_hash,email_verified_at FROM users WHERE id = $1 FOR UPDATE',
+          [candidate.id],
+        )
       : null;
     const user = locked?.rows[0];
     if (!valid || !user?.email_verified_at || user.password_hash !== candidate?.password_hash) {
@@ -166,11 +173,24 @@ export async function login(email: string, password: string, previousToken: stri
         env.SESSION_ABSOLUTE_SECONDS,
       ],
     );
+    const createdSession = session.rows[0];
+    if (!createdSession) throw new Error('Session insert returned no record');
     await audit(client, 'LOGIN_SUCCEEDED', user.id);
-    return { user: { id: user.id, email: user.email }, sessionId: session.rows[0]!.id };
+    return { user: { id: user.id, email: user.email }, sessionId: createdSession.id };
   });
   if (!result) throw unauthorized('Invalid email or password', 'INVALID_CREDENTIALS');
   return { ...result, rawToken, csrfToken };
+}
+
+export async function readSession(rawToken: string | null): Promise<SessionIdentity> {
+  if (!rawToken) throw unauthorized();
+  const session = await sessionRepository.readAndTouchSession(
+    pool,
+    hashOpaqueToken(rawToken),
+    env.SESSION_IDLE_SECONDS,
+  );
+  if (!session) throw unauthorized();
+  return session;
 }
 
 // Keep the session check and protected operation in one account-locked transaction.
@@ -182,19 +202,8 @@ export async function withSession<T>(
   if (!rawToken) throw unauthorized();
   return withTransaction(async (client) => {
     const hash = hashOpaqueToken(rawToken);
-    const lookup = await client.query<{ user_id: string }>(
-      'SELECT user_id FROM auth_sessions WHERE token_hash = $1',
-      [hash],
-    );
-    const userId = lookup.rows[0]?.user_id;
-    if (!userId) throw unauthorized();
-    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
-    const active = await client.query<Session>(
-      `SELECT * FROM auth_sessions WHERE token_hash = $1
-      AND revoked_at IS NULL AND idle_expires_at > clock_timestamp() AND absolute_expires_at > clock_timestamp() FOR UPDATE`,
-      [hash],
-    );
-    const session = active.rows[0];
+    if (!(await sessionRepository.lockSessionAccount(client, hash))) throw unauthorized();
+    const session = await sessionRepository.findActiveSessionForUpdate(client, hash);
     if (!session) throw unauthorized();
     if (
       csrf !== undefined &&
@@ -205,11 +214,7 @@ export async function withSession<T>(
     ) {
       throw forbidden('Invalid CSRF token', 'CSRF_INVALID');
     }
-    await client.query(
-      `UPDATE auth_sessions SET last_used_at = clock_timestamp(),
-      idle_expires_at = LEAST(absolute_expires_at, clock_timestamp() + $2 * interval '1 second') WHERE id = $1`,
-      [session.id, env.SESSION_IDLE_SECONDS],
-    );
+    await sessionRepository.touchSession(client, session.id, env.SESSION_IDLE_SECONDS);
     return operation(client, session);
   });
 }

@@ -12,11 +12,21 @@ Use this structure for backend modules, as requested by the project owner:
 - `*.schema.ts`: Zod request validation.
 - `*.repository.ts`: parameterised SQL using the supplied transaction client.
 - `*.service.ts`: permissions, workflow rules and orchestration.
-- `*.controller.ts`: typed HTTP handling and the authenticated transaction boundary.
+- `*.controller.ts`: typed input/context, service calls, and explicit HTTP results.
 - `*.routes.ts`: route registration, shared `validate()` and other middleware.
 - `*.test.ts` / `*.integration.test.ts`: meaningful behavior and isolation tests.
 
 Project requests reuse the existing opaque session, origin and CSRF protections.
+Reusable authentication route middleware supplies typed user/session context.
+Read requests validate and slide the session in one statement, without a request-long
+transaction or account lock; an already-authenticated in-flight read may complete
+if its session is revoked afterwards. Detail data and membership are read in one
+SQL statement so the response uses one committed snapshot.
+
+Mutations validate the session, check CSRF, and run the controller/service inside
+the account-locked transaction. Controllers return an HTTP result; middleware sends
+it only after COMMIT succeeds. Do not replace this with authentication followed
+by a separate mutation transaction: that would reopen the revocation/reset race.
 Project mutations lock the project before checking roles and state. Editing and
 proposal decisions also require the latest project `version`; stale requests fail
 with HTTP 409. Project access without membership returns 404.
@@ -82,6 +92,15 @@ feedback. Approval activates the project. Requested changes allow editing and
 resubmission while retaining old snapshots. Rejection is terminal. External
 approval activates automatically when the initial Author/lead and main Reviewer
 have joined; extra group invitations do not block activation.
+
+Draft structure updates are set-based and retain milestone/deliverable IDs.
+Existing clients may omit item IDs: an all-ID-free list is matched by position.
+Clients sending IDs can reorder existing items and omit IDs for new items. Unknown
+or duplicate IDs fail validation at the service boundary. Omitted existing items
+are removed only from the editable draft; proposal snapshots remain unchanged.
+Deferred position uniqueness supports reordering in the same transaction.
+Database triggers also prevent changes to project provenance and submitted
+proposal snapshots, including completed decisions.
 
 Draft edits record actor and before/after structure; invitations, submissions,
 and decisions also record events. A proposal snapshot cannot be edited via the

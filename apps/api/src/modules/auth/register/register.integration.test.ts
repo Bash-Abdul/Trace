@@ -60,6 +60,8 @@ describe('POST /api/v1/auth/register', () => {
   });
 
   beforeEach(async () => {
+    // Keep throttling from other suites out of registration persistence checks.
+    await pool.query('DELETE FROM auth_rate_limits');
     await removeRegistrationTestUsers();
   });
 

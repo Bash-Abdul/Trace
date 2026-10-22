@@ -26,6 +26,8 @@ export async function closeDatabaseConnection(): Promise<void> {
   await pool.end();
 }
 
+export type Database = Pick<PoolClient, 'query'>;
+
 type TransactionOperation<T> = (client: PoolClient) => Promise<T>;
 
 /*

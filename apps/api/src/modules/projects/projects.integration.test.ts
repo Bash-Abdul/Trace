@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 const testUrl = process.env.TEST_DATABASE_URL;
@@ -12,8 +12,8 @@ process.env.APP_ORIGIN = 'http://localhost:3000';
 const { createApp } = await import('../../app.js');
 const { pool } = await import('../../config/db.js');
 const { hashPassword } = await import('../auth/auth-crypto/auth-crypto.js');
-const { login } = await import('../auth/auth.service.js');
-const { cookieName } = await import('../auth/auth-policy.js');
+const { login, withSession } = await import('../auth/auth.service.js');
+const { cookieName, readSessionCookie } = await import('../auth/auth-policy.js');
 const app = createApp();
 const origin = 'http://localhost:3000';
 const password = 'ProjectTestPassword1!';
@@ -55,12 +55,16 @@ beforeAll(async () => {
   }
   [author, reviewer, teammate, outsider] = actors as [Actor, Actor, Actor, Actor];
 });
+beforeEach(async () => {
+  await pool.query('DELETE FROM auth_rate_limits');
+});
 afterAll(async () => {
   await pool.query('DELETE FROM projects WHERE id=ANY($1::uuid[])', [projectIds]);
   await pool.query('DELETE FROM auth_audit_events WHERE user_id=ANY($1::uuid[])', [
     actors.map((a) => a.id),
   ]);
   await pool.query('DELETE FROM users WHERE id=ANY($1::uuid[])', [actors.map((a) => a.id)]);
+  await pool.query('DELETE FROM auth_rate_limits');
   await pool.end();
 });
 function post(actor: Actor, path: string, body: object) {
@@ -375,5 +379,190 @@ describe('project membership, invitations and activation', () => {
           .send({ ...current, projectType: 'GROUP' })
       ).status,
     ).toBe(400);
+  });
+});
+
+describe('refactored project transaction and persistence behavior', () => {
+  function patch(id: string, body: object) {
+    return request(app)
+      .patch(`/api/v1/projects/${id}`)
+      .set('Cookie', author.cookie)
+      .set('Origin', origin)
+      .set('x-csrf-token', author.csrf)
+      .send(body);
+  }
+  const itemsSchema = z.array(
+    z.object({ id: z.string(), title: z.string(), required: z.boolean() }),
+  );
+  async function items(id: string) {
+    const response = await request(app).get(`/api/v1/projects/${id}`).set('Cookie', author.cookie);
+    expect(response.status).toBe(200);
+    return z.object({ milestones: itemsSchema, deliverables: itemsSchema }).parse(response.body);
+  }
+  it('retains identifiers for legacy edits and explicit reorders; rejects foreign or duplicate IDs', async () => {
+    const p = await create();
+    const before = await items(p.id);
+    const draft = {
+      version: p.version,
+      title: 'Updated title',
+      description: p.description,
+      objectives: p.objectives,
+      milestones: p.milestones,
+      deliverables: p.deliverables,
+    };
+    expect((await patch(p.id, draft)).status).toBe(200);
+    expect(await items(p.id)).toEqual(before);
+    const current = await get(author, p.id);
+    const reversed = [...before.milestones].reverse();
+    expect(
+      (await patch(p.id, { ...draft, version: current.version, milestones: reversed })).status,
+    ).toBe(200);
+    expect((await items(p.id)).milestones).toEqual(reversed);
+    const version = (await get(author, p.id)).version;
+    const duplicate = reversed.map((item) => ({ ...item, id: reversed[0]?.id }));
+    expect((await patch(p.id, { ...draft, version, milestones: duplicate })).status).toBe(400);
+    expect(
+      (
+        await patch(p.id, {
+          ...draft,
+          version,
+          milestones: [{ id: randomUUID(), title: 'Foreign', required: true }],
+        })
+      ).status,
+    ).toBe(400);
+    expect((await get(author, p.id)).version).toBe(version);
+    expect((await items(p.id)).milestones).toEqual(reversed);
+    const shortened = reversed.slice(0, 2);
+    expect(
+      (
+        await patch(p.id, {
+          ...draft,
+          version,
+          milestones: [...shortened, { title: 'New milestone', required: true }],
+        })
+      ).status,
+    ).toBe(200);
+    const updated = await items(p.id);
+    expect(updated.milestones.slice(0, 2)).toEqual(shortened);
+    expect(updated.milestones).toHaveLength(3);
+    expect(before.milestones.map((item) => item.id)).not.toContain(updated.milestones[2]?.id);
+  });
+  it('rolls back brief, structure, version and events together when protected work fails', async () => {
+    const p = await create();
+    const before = await items(p.id);
+    const { updateDraft } = await import('./projects.service.js');
+    const priorEvents = await pool.query<{ count: number }>(
+      'SELECT count(*)::int AS count FROM project_events WHERE project_id=$1',
+      [p.id],
+    );
+    await expect(
+      withSession(readSessionCookie(author.cookie), author.csrf, async (client) => {
+        await updateDraft(client, p.id, author.id, {
+          version: p.version,
+          title: 'Must roll back',
+          description: p.description,
+          objectives: ['Must roll back'],
+          milestones: [{ title: 'Changed', required: true }],
+          deliverables: p.deliverables,
+        });
+        throw new Error('simulate a later operation failure');
+      }),
+    ).rejects.toThrow('simulate a later operation failure');
+    expect(await get(author, p.id)).toMatchObject({
+      title: p.title,
+      version: p.version,
+      objectives: p.objectives,
+    });
+    expect(await items(p.id)).toEqual(before);
+    const afterEvents = await pool.query<{ count: number }>(
+      'SELECT count(*)::int AS count FROM project_events WHERE project_id=$1',
+      [p.id],
+    );
+    expect(afterEvents.rows).toEqual(priorEvents.rows);
+  });
+  it('reads committed project details without waiting for another request’s project lock', async () => {
+    const p = await create();
+    const blocker = await pool.connect();
+    let pending: Promise<request.Response> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await blocker.query('BEGIN');
+      await blocker.query('UPDATE projects SET title=$2 WHERE id=$1', [p.id, 'Uncommitted title']);
+      pending = request(app)
+        .get(`/api/v1/projects/${p.id}`)
+        .set('Cookie', author.cookie)
+        .then((result) => result);
+      const result = await Promise.race([
+        pending,
+        new Promise<null>((resolve) => {
+          timer = setTimeout(() => resolve(null), 1500);
+        }),
+      ]);
+      expect(result?.status).toBe(200);
+      expect(projectSchema.parse(result?.body).title).toBe(p.title);
+    } finally {
+      if (timer) clearTimeout(timer);
+      await blocker.query('ROLLBACK');
+      blocker.release();
+      await pending;
+    }
+  });
+  it('rejects revoked and expired sessions on reads and mutations', async () => {
+    const p = await create();
+    for (const mode of ['revoked', 'expired']) {
+      const signed = await login(author.email, password, null);
+      if (mode === 'revoked')
+        await pool.query('UPDATE auth_sessions SET revoked_at=now() WHERE id=$1', [
+          signed.sessionId,
+        ]);
+      else
+        await pool.query(
+          "UPDATE auth_sessions SET idle_expires_at=now()-interval '1 second' WHERE id=$1",
+          [signed.sessionId],
+        );
+      const cookie = `${cookieName}=${signed.rawToken}`;
+      expect(
+        (await request(app).get(`/api/v1/projects/${p.id}`).set('Cookie', cookie)).status,
+      ).toBe(401);
+      expect(
+        (
+          await request(app)
+            .post(`/api/v1/projects/${p.id}/proposals`)
+            .set('Cookie', cookie)
+            .set('Origin', origin)
+            .set('x-csrf-token', signed.csrfToken)
+            .send({ version: p.version })
+        ).status,
+      ).toBe(401);
+    }
+  });
+  it('enforces project provenance and proposal immutability in PostgreSQL', async () => {
+    const p = await create();
+    await expect(
+      pool.query("UPDATE projects SET project_type='GROUP' WHERE id=$1", [p.id]),
+    ).rejects.toMatchObject({ code: '23514' });
+    await join(author, p.id, reviewer, 'MAIN_REVIEWER');
+    const current = await get(author, p.id);
+    expect((await post(author, `/${p.id}/proposals`, { version: current.version })).status).toBe(
+      201,
+    );
+    await expect(
+      pool.query("UPDATE project_proposals SET structure='{}'::jsonb WHERE project_id=$1", [p.id]),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+  it('rate limits PATCH requests as well as POST requests', async () => {
+    const p = await create();
+    // The create request has populated the same network bucket used by PATCH.
+    await pool.query('UPDATE auth_rate_limits SET attempts=100');
+    const response = await patch(p.id, {
+      version: p.version,
+      title: p.title,
+      description: p.description,
+      objectives: p.objectives,
+      milestones: p.milestones,
+      deliverables: p.deliverables,
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers['retry-after']).toBe('900');
   });
 });

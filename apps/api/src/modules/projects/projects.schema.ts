@@ -1,48 +1,5 @@
 import { z } from 'zod';
 
-export const templates = [
-  {
-    key: 'design',
-    name: 'Design project',
-    version: 1,
-    milestones: [
-      'Project brief & proposal',
-      'Context & research',
-      'Concept development',
-      'Prototype & evaluation',
-      'Final outcome & reflection',
-    ],
-  },
-  {
-    key: 'research',
-    name: 'Research dissertation',
-    version: 1,
-    milestones: [
-      'Research proposal',
-      'Literature review',
-      'Methodology',
-      'Analysis & findings',
-      'Dissertation & reflection',
-    ],
-  },
-  {
-    key: 'software',
-    name: 'Software project',
-    version: 1,
-    milestones: [
-      'Discovery & requirements',
-      'System design',
-      'Implementation & testing',
-      'Evaluation & reflection',
-    ],
-  },
-  {
-    key: 'independent',
-    name: 'Independent study',
-    version: 1,
-    milestones: ['Intent & objectives', 'Exploration', 'Development', 'Outcome & reflection'],
-  },
-] as const;
 const title = z.string().trim().min(1).max(120);
 export const briefSchema = z.object({
   title,
@@ -62,11 +19,11 @@ export const draftSchema = briefSchema
   .extend({
     version: versionSchema.shape.version,
     milestones: z
-      .array(z.object({ title, required: z.boolean() }).strict())
+      .array(z.object({ id: z.string().uuid().optional(), title, required: z.boolean() }).strict())
       .min(1)
       .max(30),
     deliverables: z
-      .array(z.object({ title, required: z.boolean() }).strict())
+      .array(z.object({ id: z.string().uuid().optional(), title, required: z.boolean() }).strict())
       .min(1)
       .max(20),
   })

@@ -1,9 +1,12 @@
 import { createHmac } from 'node:crypto';
 import type { RequestHandler } from 'express';
-import { withTransaction } from '../../config/db.js';
+import { pool, withTransaction } from '../../config/db.js';
 import { env } from '../../config/index.js';
 import { AppError, forbidden } from '../../utils/app-error.js';
-import { audit } from './auth.service.js';
+import { audit, readSession, withSession } from './auth.service.js';
+import { readSessionCookie } from './auth-policy.js';
+import type { AuthenticatedHandler, MutationHandler } from './auth.types.js';
+import { rateLimitBodySchema } from './auth.schema.js';
 
 export const authBrowserControls: RequestHandler = (request, response, next) => {
   response.set({
@@ -32,12 +35,9 @@ export const authBrowserControls: RequestHandler = (request, response, next) => 
 };
 
 export const authRateLimit: RequestHandler = async (request, response, next) => {
-  if (request.method !== 'POST' && request.method !== 'DELETE') return next();
-  const body: unknown = request.body;
-  const email =
-    typeof body === 'object' && body !== null && 'email' in body && typeof body.email === 'string'
-      ? body.email.trim().toLowerCase().slice(0, 320)
-      : null;
+  if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
+  const parsedBody = rateLimitBodySchema.safeParse(request.body);
+  const email = parsedBody.success ? parsedBody.data.email : null;
   const keys = [{ value: `network:${request.ip ?? 'unknown'}`, limit: 100 }];
   if (email)
     keys.push({
@@ -79,3 +79,35 @@ export const requireMutationOrigin: RequestHandler = (request, _response, next) 
     return next(forbidden('Origin required', 'ORIGIN_REQUIRED'));
   next();
 };
+
+// Controllers return an HTTP result instead of sending during a transaction.
+// In particular, a successful response must never escape before COMMIT succeeds.
+export function authenticateRead<Params, Body, Result>(
+  handler: AuthenticatedHandler<Params, Body, Result>,
+): RequestHandler<Params, Result, Body> {
+  return async (request, response): Promise<void> => {
+    const session = await readSession(readSessionCookie(request.headers.cookie));
+    const result = await handler(request, {
+      userId: session.user_id,
+      sessionId: session.id,
+      db: pool,
+    });
+    if (result.status === 204) response.status(204).end();
+    else response.status(result.status).json(result.body);
+  };
+}
+
+export function authenticateMutation<Params, Body, Result>(
+  handler: MutationHandler<Params, Body, Result>,
+): RequestHandler<Params, Result, Body> {
+  return async (request, response): Promise<void> => {
+    const result = await withSession(
+      readSessionCookie(request.headers.cookie),
+      request.get('x-csrf-token') ?? '',
+      (client, session) =>
+        handler(request, { userId: session.user_id, sessionId: session.id, db: client }),
+    );
+    if (result.status === 204) response.status(204).end();
+    else response.status(result.status).json(result.body);
+  };
+}

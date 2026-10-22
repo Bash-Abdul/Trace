@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
 import {
   authBrowserControls,
+  authenticateRead,
+  authenticateMutation,
   authRateLimit,
   requireMutationOrigin,
 } from '../auth/auth.middleware.js';
@@ -24,37 +26,45 @@ projectsRouter.use((request, response, next) => {
   if (request.method === 'GET') return next();
   return requireMutationOrigin(request, response, next);
 });
-projectsRouter.get('/templates', controller.listTemplates);
-projectsRouter.get('/', controller.listProjects);
-projectsRouter.post('/', validate({ body: createProjectSchema }), controller.createProject);
+projectsRouter.get('/templates', authenticateRead(controller.listTemplates));
+projectsRouter.get('/', authenticateRead(controller.listProjects));
+projectsRouter.post(
+  '/',
+  validate({ body: createProjectSchema }),
+  authenticateMutation(controller.createProject),
+);
 projectsRouter.post(
   '/invitations/accept',
   validate({ body: tokenSchema }),
-  controller.acceptInvitation,
+  authenticateMutation(controller.acceptInvitation),
 );
-projectsRouter.get('/:id', validate({ params: projectParamsSchema }), controller.getProject);
+projectsRouter.get(
+  '/:id',
+  validate({ params: projectParamsSchema }),
+  authenticateRead(controller.getProject),
+);
 projectsRouter.patch(
   '/:id',
   validate({ params: projectParamsSchema, body: draftSchema }),
-  controller.updateDraft,
+  authenticateMutation(controller.updateDraft),
 );
 projectsRouter.post(
   '/:id/invitations',
   validate({ params: projectParamsSchema, body: invitationSchema }),
-  controller.invite,
+  authenticateMutation(controller.invite),
 );
 projectsRouter.delete(
   '/:id/invitations/:invitationId',
   validate({ params: invitationParamsSchema }),
-  controller.cancelInvitation,
+  authenticateMutation(controller.cancelInvitation),
 );
 projectsRouter.post(
   '/:id/proposals',
   validate({ params: projectParamsSchema, body: versionSchema }),
-  controller.submitProposal,
+  authenticateMutation(controller.submitProposal),
 );
 projectsRouter.post(
   '/:id/proposals/:proposalId/decision',
   validate({ params: proposalParamsSchema, body: decisionSchema }),
-  controller.decideProposal,
+  authenticateMutation(controller.decideProposal),
 );
