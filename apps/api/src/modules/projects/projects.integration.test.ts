@@ -462,7 +462,7 @@ describe('refactored project transaction and persistence behavior', () => {
           title: 'Must roll back',
           description: p.description,
           objectives: ['Must roll back'],
-          milestones: [{ title: 'Changed', required: true }],
+          milestones: [{ ...before.milestones[0]!, title: 'Changed', required: true }],
           deliverables: p.deliverables,
         });
         throw new Error('simulate a later operation failure');
@@ -550,6 +550,238 @@ describe('refactored project transaction and persistence behavior', () => {
       pool.query("UPDATE project_proposals SET structure='{}'::jsonb WHERE project_id=$1", [p.id]),
     ).rejects.toMatchObject({ code: '23514' });
   });
+  it('keeps legacy IDs attached to titles through deletion, insertion and reordering', async () => {
+    const p = await create();
+    const original = (await items(p.id)).milestones;
+    let current = await get(author, p.id);
+    let expected = original.slice(1);
+    const saveLegacy = async (milestones: { title: string; required: boolean }[]) => {
+      const response = await patch(p.id, {
+        version: current.version,
+        title: current.title,
+        description: current.description,
+        objectives: current.objectives,
+        milestones,
+        deliverables: current.deliverables,
+      });
+      current = await get(author, p.id);
+      return response;
+    };
+    const withoutIds = (values: typeof original) =>
+      values.map(({ title, required }) => ({ title, required }));
+
+    expect((await saveLegacy(withoutIds(expected))).status).toBe(200);
+    expect((await items(p.id)).milestones).toEqual(expected);
+    expect(
+      (await saveLegacy([{ title: 'New first item', required: true }, ...withoutIds(expected)]))
+        .status,
+    ).toBe(200);
+    const inserted = (await items(p.id)).milestones;
+    expect(inserted.slice(1)).toEqual(expected);
+    expect(original.map((item) => item.id)).not.toContain(inserted[0]?.id);
+    expected = [...inserted].reverse();
+    expect((await saveLegacy(withoutIds(expected))).status).toBe(200);
+    expect((await items(p.id)).milestones).toEqual(expected);
+
+    const ambiguous = withoutIds([...expected].reverse());
+    ambiguous[0] = { title: 'Renamed while reordering', required: true };
+    const version = current.version;
+    expect((await saveLegacy(ambiguous)).status).toBe(400);
+    expect(current.version).toBe(version);
+    expect((await items(p.id)).milestones).toEqual(expected);
+  });
+
+  it('preserves legacy in-place renames and rejects ambiguous duplicate-title moves', async () => {
+    const p = await create();
+    const original = await items(p.id);
+    const draft = {
+      version: p.version,
+      title: p.title,
+      description: p.description,
+      objectives: p.objectives,
+      milestones: p.milestones.map((item, index) => ({
+        ...item,
+        title: index === 0 ? 'Renamed' : item.title,
+      })),
+      deliverables: p.deliverables,
+    };
+    expect((await patch(p.id, draft)).status).toBe(200);
+    expect((await items(p.id)).milestones.map((item) => item.id)).toEqual(
+      original.milestones.map((item) => item.id),
+    );
+    const duplicateTitles = original.milestones.map((item) => ({ ...item, title: 'Same title' }));
+    expect(
+      (
+        await patch(p.id, {
+          ...draft,
+          version: (await get(author, p.id)).version,
+          milestones: duplicateTitles,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await patch(p.id, {
+          ...draft,
+          version: (await get(author, p.id)).version,
+          milestones: [{ title: 'Same title', required: true }],
+        })
+      ).status,
+    ).toBe(400);
+    expect((await items(p.id)).milestones).toEqual(duplicateTitles);
+  });
+
+  it('saves swaps, middle deletion, insertion and empty collections under real constraints', async () => {
+    const p = await create();
+    const { withTransaction } = await import('../../config/db.js');
+    const repository = await import('./projects.repository.js');
+    const before = await items(p.id);
+    const milestones = [...before.milestones].reverse();
+    milestones.splice(2, 1);
+    milestones.splice(1, 0, { id: randomUUID(), title: 'Inserted', required: false });
+    const deliverables = [
+      { id: randomUUID(), title: 'Additional outcome', required: false },
+      ...before.deliverables,
+    ];
+    const save = async (structure: {
+      objectives: string[];
+      milestones: typeof milestones;
+      deliverables: typeof deliverables;
+    }) => {
+      await withTransaction(async (client) => {
+        await repository.findProjectForUpdate(client, p.id);
+        await repository.saveStructure(client, p.id, {
+          title: p.title,
+          description: p.description,
+          ...structure,
+        });
+      });
+    };
+    await save({ objectives: ['First', 'Second'], milestones, deliverables });
+    expect(await items(p.id)).toEqual({ milestones, deliverables });
+    await save({ objectives: ['Changed'], milestones, deliverables: [...deliverables].reverse() });
+    expect((await items(p.id)).deliverables).toEqual([...deliverables].reverse());
+    expect((await get(author, p.id)).objectives).toEqual(['Changed']);
+    await save({ objectives: [], milestones: [], deliverables: [] });
+    expect(await items(p.id)).toEqual({ milestones: [], deliverables: [] });
+    expect((await get(author, p.id)).objectives).toEqual([]);
+    await save({ objectives: ['Restored'], milestones, deliverables });
+    expect(await items(p.id)).toEqual({ milestones, deliverables });
+    const draft = {
+      version: p.version,
+      title: p.title,
+      description: p.description,
+      objectives: ['Restored'],
+      milestones,
+      deliverables,
+    };
+    for (const field of ['objectives', 'milestones', 'deliverables']) {
+      expect((await patch(p.id, { ...draft, [field]: [] })).status).toBe(400);
+    }
+    expect(await items(p.id)).toEqual({ milestones, deliverables });
+  });
+
+  it('rejects an older undecided proposal even with the current project version', async () => {
+    const p = await create();
+    await join(author, p.id, reviewer, 'MAIN_REVIEWER');
+    const current = await get(author, p.id);
+    expect((await post(author, `/${p.id}/proposals`, { version: current.version })).status).toBe(
+      201,
+    );
+    // The existing database constraints permit this historical pending row.
+    const old = await pool.query<{ id: string }>(
+      `INSERT INTO project_proposals (project_id, version, structure, submitted_by_user_id)
+       VALUES ($1, 0, jsonb_build_object('title', 'Historical proposal'), $2) RETURNING id`,
+      [p.id, author.id],
+    );
+    const pending = await get(reviewer, p.id);
+    const response = await post(reviewer, `/${p.id}/proposals/${old.rows[0]!.id}/decision`, {
+      version: pending.version,
+      decision: 'APPROVE',
+      feedback: '',
+    });
+    expect(response.status).toBe(409);
+    expect(await get(reviewer, p.id)).toMatchObject({
+      status: 'PROPOSAL_IN_REVIEW',
+      version: pending.version,
+    });
+    const decisions = await pool.query<{ decision: string | null }>(
+      'SELECT decision FROM project_proposals WHERE project_id=$1',
+      [p.id],
+    );
+    expect(decisions.rows.every((row) => row.decision === null)).toBe(true);
+    const latestId = pending.proposals[0]!.id;
+    const results = await Promise.all([
+      post(reviewer, `/${p.id}/proposals/${latestId}/decision`, {
+        version: pending.version,
+        decision: 'APPROVE',
+        feedback: '',
+      }),
+      post(reviewer, `/${p.id}/proposals/${latestId}/decision`, {
+        version: pending.version,
+        decision: 'REQUEST_CHANGES',
+        feedback: 'More evidence',
+      }),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+  });
+
+  it('serializes competing authors and rolls back the stale draft without partial changes', async () => {
+    const p = await create(author, true);
+    await join(author, p.id, teammate, 'AUTHOR');
+    const current = await get(author, p.id);
+    const before = await items(p.id);
+    const drafts = ['First writer', 'Second writer'].map((title, index) => ({
+      version: current.version,
+      title,
+      description: current.description,
+      objectives: [title],
+      milestones: index === 0 ? [...before.milestones].reverse() : before.milestones.slice(1),
+      deliverables: before.deliverables,
+    }));
+    const results = await Promise.all(
+      [author, teammate].map((actor, index) =>
+        request(app)
+          .patch(`/api/v1/projects/${p.id}`)
+          .set('Cookie', actor.cookie)
+          .set('Origin', origin)
+          .set('x-csrf-token', actor.csrf)
+          .send(drafts[index]),
+      ),
+    );
+    expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
+    const winner = drafts[results.findIndex((result) => result.status === 200)]!;
+    expect(await get(author, p.id)).toMatchObject({
+      title: winner.title,
+      objectives: winner.objectives,
+      version: current.version + 1,
+    });
+    expect((await items(p.id)).milestones).toEqual(winner.milestones);
+    const events = await pool.query(
+      "SELECT id FROM project_events WHERE project_id=$1 AND action='DRAFT_UPDATED'",
+      [p.id],
+    );
+    expect(events.rowCount).toBe(1);
+  });
+
+  it('shows invitation history only to the service-authorized roles', async () => {
+    const p = await create(author, true);
+    await join(author, p.id, teammate, 'AUTHOR');
+    await invite(author, p.id, reviewer.email, 'MAIN_REVIEWER');
+    for (const [actor, expectedCount] of [
+      [author, 2],
+      [teammate, 0],
+    ] as const) {
+      const response = await request(app)
+        .get(`/api/v1/projects/${p.id}`)
+        .set('Cookie', actor.cookie);
+      expect(response.status).toBe(200);
+      expect(
+        z.object({ invitations: z.array(z.unknown()) }).parse(response.body).invitations,
+      ).toHaveLength(expectedCount);
+    }
+  });
+
   it('rate limits PATCH requests as well as POST requests', async () => {
     const p = await create();
     // The create request has populated the same network bucket used by PATCH.

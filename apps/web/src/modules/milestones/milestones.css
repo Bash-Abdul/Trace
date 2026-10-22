@@ -1,0 +1,31 @@
+.evidence-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.evidence-item {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-block: 1rem;
+  min-width: 0;
+}
+.evidence-item label {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+.evidence-list {
+  padding-left: 1.25rem;
+}
+.evidence-list li {
+  margin-block: 1rem;
+  overflow-wrap: anywhere;
+}
+.evidence-text {
+  white-space: pre-wrap;
+}
+.evidence-list small {
+  display: block;
+  margin-top: 0.5rem;
+}

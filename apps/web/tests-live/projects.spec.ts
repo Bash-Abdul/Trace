@@ -44,6 +44,8 @@ test('group creation, author and Reviewer invitations, shared draft and proposal
   page.setDefaultTimeout(10000);
   const reviewerContext = await browser.newContext({ baseURL });
   const teammateContext = await browser.newContext({ baseURL });
+  reviewerContext.setDefaultTimeout(10000);
+  teammateContext.setDefaultTimeout(10000);
   try {
     const reviewer = await reviewerContext.newPage();
     const teammate = await teammateContext.newPage();
@@ -125,6 +127,82 @@ test('group creation, author and Reviewer invitations, shared draft and proposal
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    await page.getByRole('link', { name: 'Project brief & proposal', exact: true }).click();
+    const milestoneUrl = page.url();
+    await teammate.goto(milestoneUrl);
+    await teammate.getByRole('button', { name: 'Add evidence', exact: true }).click();
+    await teammate.getByLabel('Evidence title', { exact: true }).fill('Interview notes');
+    await teammate
+      .getByLabel('Evidence text', { exact: true })
+      .fill('Neighbours want accessible raised beds.');
+    await teammate.getByRole('button', { name: 'Add evidence', exact: true }).click();
+    await teammate.getByLabel('Evidence title', { exact: true }).nth(1).fill('Reference');
+    await teammate.getByLabel('Evidence type', { exact: true }).nth(1).selectOption('LINK');
+    await teammate.getByLabel('Evidence URL', { exact: true }).fill('https://example.com/garden');
+    await teammate.getByRole('button', { name: 'Save evidence draft' }).click();
+    await expect(teammate.getByRole('status')).toContainText('Milestone updated');
+    await expect(
+      teammate.getByRole('button', { name: 'Submit milestone', exact: true }),
+    ).toHaveCount(0);
+    await page.reload();
+    await page.getByRole('button', { name: 'Submit milestone', exact: true }).click();
+    await expect(page.getByText('Version 1 · Awaiting review', { exact: true })).toBeVisible();
+    await reviewer.goto(projectUrl);
+    await expect(
+      reviewer.getByRole('link', { name: 'milestone submitted', exact: true }),
+    ).toBeVisible();
+    await reviewer.goto(milestoneUrl);
+    await reviewer
+      .getByLabel('New feedback', { exact: true })
+      .fill('Explain how the interviews were selected.');
+    await reviewer.getByLabel('Blocking feedback', { exact: true }).check();
+    await reviewer.getByRole('button', { name: 'Add feedback', exact: true }).click();
+    await expect(
+      reviewer.getByRole('heading', { name: 'Blocking feedback · Version 1', exact: true }),
+    ).toBeVisible();
+    await reviewer.getByLabel('Milestone decision').selectOption('REQUEST_REVISION');
+    await reviewer.getByLabel('Review explanation').fill('Add the sampling rationale.');
+    await reviewer.getByRole('button', { name: 'Save milestone decision' }).click();
+    await expect(
+      reviewer.getByText('Version 1 · Revision requested', { exact: true }),
+    ).toBeVisible();
+    await teammate.reload();
+    await teammate
+      .getByLabel('Evidence text', { exact: true })
+      .fill('Revised: we interviewed neighbours across age groups.');
+    await teammate.getByRole('button', { name: 'Save evidence draft' }).click();
+    await expect(teammate.getByRole('status')).toContainText('Milestone updated');
+    await teammate.getByLabel('Feedback action').selectOption('ADDRESS');
+    await teammate
+      .getByLabel('Feedback response')
+      .fill('The revised draft now explains the sample.');
+    await teammate.getByRole('button', { name: 'Save feedback response' }).click();
+    await expect(teammate.getByText(/addressed by author/)).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: 'Submit milestone', exact: true }).click();
+    await expect(page.getByText('Version 2 · Awaiting review', { exact: true })).toBeVisible();
+    await reviewer.reload();
+    await reviewer.getByLabel('Feedback action').selectOption('RESOLVE');
+    await reviewer.getByLabel('Feedback response').fill('The rationale is clear.');
+    await reviewer.getByRole('button', { name: 'Save feedback response' }).click();
+    await expect(reviewer.getByText(/resolved by reviewer/)).toBeVisible();
+    await reviewer.getByRole('button', { name: 'Save milestone decision' }).click();
+    await expect(reviewer.getByText('Version 2 · Approved', { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('Version 2 · Approved', { exact: true })).toBeVisible();
+    await page.getByText('Version 1 · Revision requested', { exact: true }).click();
+    await expect(
+      page.getByText('Neighbours want accessible raised beds.', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Revised: we interviewed neighbours across age groups.', { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({ path: '/tmp/trace-milestone-mobile.png', fullPage: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: '/tmp/trace-milestone-desktop.png', fullPage: true });
     await page.goto('/workspace/new');
     await page.getByLabel('Project title').fill('An individual project');
     await page.getByLabel('About your project').fill('An independently authored project.');
@@ -133,7 +211,6 @@ test('group creation, author and Reviewer invitations, shared draft and proposal
     await expect(page.getByLabel('Invite as').getByRole('option')).toHaveCount(1);
     await expect(page.getByLabel('Invite as')).toHaveValue('MAIN_REVIEWER');
   } finally {
-    await reviewerContext.close();
-    await teammateContext.close();
+    await Promise.all([reviewerContext.close(), teammateContext.close()]);
   }
 });

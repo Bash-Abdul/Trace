@@ -1,3 +1,4 @@
+import { ProjectNotifications } from '../milestones/ProjectNotifications';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useProjectApi } from './use-project-api';
@@ -138,7 +139,7 @@ function ProjectContent({ id }: { id: string }) {
             <ol>
               {project.milestones.map((m) => (
                 <li key={m.id}>
-                  {m.title}
+                  <Link to={`/workspace/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
                   {m.required ? '' : ' (optional)'}
                 </li>
               ))}
@@ -181,8 +182,7 @@ function ProjectContent({ id }: { id: string }) {
             )}
             {project.status === 'ACTIVE' && (
               <p className="soft-note">
-                Your project is active. Milestone evidence and submission workflows are the next
-                development phase.
+                Your project is active. Open a milestone to add evidence, submit work or review it.
               </p>
             )}
             {project.status === 'PROPOSAL_REJECTED' && (
@@ -263,6 +263,7 @@ function ProjectContent({ id }: { id: string }) {
           </form>
         )}
       </section>
+      <ProjectNotifications projectId={id} />
       <section className="panel form-panel live-section">
         <h2>Project history</h2>
         <ul className="live-events">

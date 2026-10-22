@@ -2,6 +2,56 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Milestone evidence checkpoint — October 22, 2026
+
+Text/link evidence is connected to the live workspace. Open an active project,
+then its milestone: authors can save shared drafts, the lead submits an immutable
+version, and the active Reviewer approves or requests revision. Feedback belongs
+to a submitted version and supports replies, author addressing, Reviewer resolution
+and reopening. Project notifications are scoped to their recipient.
+
+The module follows tests/types/schema/repository/service/controller/routes.
+Services enforce roles and workflow; repositories persist data. Project locks and
+optimistic versions protect competing writes, and snapshots, events and notifications
+commit together. Existing session, CSRF and origin protections remain in use.
+See [milestones.md](./milestones.md) for endpoints, limits and concurrency semantics.
+
+Migration `1792700000000_milestone-submissions` is applied locally to both development
+and isolated test databases. Verification: `pnpm verify` passed with 54 API unit/HTTP,
+7 web unit and 51 PostgreSQL integration tests. The live browser flow covers group
+creation through milestone revision, feedback resolution and approval, including
+immutable history and mobile layout. Pre-push verification passed again;
+dependency audit has no high/critical findings (four moderate findings remain).
+
+File/image uploads are deferred to [issue #2](https://github.com/Bash-Abdul/Trace/issues/2)
+(storage provider and file policy still to choose). Evidence mappings/coverage and
+final deliverable approval remain backend work. Text/link evidence
+was the agreed first increment; the whole milestone/product phase is not complete.
+The designed overview/projects pages still need live-data integration before
+retiring the workspace routes.
+
+The existing project, membership, proposal and milestone APIs are ready to connect
+to the designed sample workspace now. Start with projects/details and milestones,
+then derive the overview from real data; do not present unsupported sample metrics
+as real activity. Reviewer invitation URLs are still shared manually. For local
+verification email delivery, use a sender on the verified Resend domain rather
+than `onboarding@resend.dev`, and run the email worker after requesting verification.
+
+## Projects SQL review — October 22, 2026
+
+Uncommitted follow-up to `017ee32`: readability cleanup plus fixes for legacy
+item identity and decisions on historical pending proposals. The service now
+matches unchanged legacy titles before using positional rename compatibility,
+rejects ambiguous structural edits without IDs, and checks that a decision targets
+the latest pending proposal under the project lock. See [projects.md](./projects.md)
+for the remaining limitations of payloads without IDs.
+
+Retained the bulk SQL after verifying deferred position constraints, committed
+reordering, deletion, insertion and empty collections. Retained the single-statement
+detail query for snapshot consistency. No new migration is needed. API tests:
+54 passed; database integration: 44 passed, including six new regression cases.
+Next product work: milestone evidence submissions, Reviewer feedback and revisions.
+
 ## Backend refactor checkpoint — October 22, 2026
 
 The working tree refactors Projects and its session boundary while preserving the

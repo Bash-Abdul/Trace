@@ -94,7 +94,12 @@ approval activates automatically when the initial Author/lead and main Reviewer
 have joined; extra group invitations do not block activation.
 
 Draft structure updates are set-based and retain milestone/deliverable IDs.
-Existing clients may omit item IDs: an all-ID-free list is matched by position.
+Existing clients may omit item IDs: unchanged unique titles are matched first,
+so insertion, deletion and reordering do not shift identities. Same-length edits
+with no detected moves retain the legacy positional-rename behaviour. Mixed
+renames/structural changes and ambiguous duplicate-title edits require explicit
+IDs (`STRUCTURE_IDS_REQUIRED`). A payload without IDs cannot distinguish every
+rename from a replacement; clients should send IDs for reliable identity.
 Clients sending IDs can reorder existing items and omit IDs for new items. Unknown
 or duplicate IDs fail validation at the service boundary. Omitted existing items
 are removed only from the editable draft; proposal snapshots remain unchanged.
@@ -104,7 +109,15 @@ proposal snapshots, including completed decisions.
 
 Draft edits record actor and before/after structure; invitations, submissions,
 and decisions also record events. A proposal snapshot cannot be edited via the
-API. Only its pending decision may be completed, once.
+API. Only the latest proposal's pending decision may be completed, once. The
+service checks this while holding the project lock and the repository checks
+that exactly one undecided row was updated.
+
+The bulk persistence queries support empty collections; the public draft schema
+continues to require at least one objective, milestone and deliverable. Tests cover
+both behaviours, committed swaps, middle deletion, insertion and competing authors.
+The single-statement detail query is retained to keep all collections in one
+snapshot without introducing a longer read transaction.
 
 ## Running and verification
 
@@ -122,7 +135,9 @@ isolated API/database setup.
 
 ## Subsequent work
 
-Milestone evidence, submissions/revisions, feedback and portfolios remain the next
-product phase. Member removal, lead transfer, dormant Reviewer management and
+Text/link milestone evidence, submissions/revisions and feedback are now implemented
+in the live workspace; see [milestones.md](./milestones.md). Uploads, evidence
+mappings/coverage, final deliverable approval and portfolios remain subsequent work.
+Member removal, lead transfer, dormant Reviewer management and
 succession have no public endpoints yet. Invitation email dispatch is not part
 of this first flow. Preserve historical attribution when adding membership changes.

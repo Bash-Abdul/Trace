@@ -19,39 +19,58 @@ import type {
   ProjectStatus,
 } from './projects.types.js';
 
-// The controller supplies the authenticated transaction; every operation uses that client.
+// Authentication middleware supplies the transaction used by each mutation.
 // Lock the project before checking permissions so concurrent state changes are serialized.
-async function projectFor(client: PoolClient, id: string, userId: string): Promise<MemberProject> {
+async function requireMemberProjectForUpdate(
+  client: PoolClient,
+  id: string,
+  userId: string,
+): Promise<MemberProject> {
   const project = await repository.findMemberProjectForUpdate(client, id, userId);
-  if (!project) throw notFound('Project not found');
+  if (!project) {
+    throw notFound('Project not found');
+  }
   return project;
 }
+
 function requireRole(project: MemberProject, ...roles: Role[]): void {
-  if (!roles.includes(project.role))
+  if (!roles.includes(project.role)) {
     throw forbidden('Your project role does not allow this action.');
+  }
 }
+
 function requireVersion(project: MemberProject, version: number): void {
-  if (project.version !== version)
+  if (project.version !== version) {
     throw conflict('This project changed. Reload it before trying again.', 'PROJECT_STALE');
+  }
 }
+
 function requireDraft(project: MemberProject): void {
-  if (!['SETUP', 'PROPOSAL_CHANGES_REQUESTED'].includes(project.status))
+  if (!['SETUP', 'PROPOSAL_CHANGES_REQUESTED'].includes(project.status)) {
     throw conflict('The project structure cannot be edited in its current state.');
+  }
 }
-function mayInvite(project: MemberProject, role: Invitation['role']): void {
-  if (project.status === 'PROPOSAL_REJECTED') throw conflict('This project was rejected.');
+
+function requireInvitationPermission(project: MemberProject, role: Invitation['role']): void {
+  if (project.status === 'PROPOSAL_REJECTED') {
+    throw conflict('This project was rejected.');
+  }
   if (
     project.role === 'LEAD_AUTHOR' &&
     (role === 'MAIN_REVIEWER' || (role === 'AUTHOR' && project.project_type === 'GROUP'))
-  )
+  ) {
     return;
-  if (project.role === 'MAIN_REVIEWER' && role === 'LEAD_AUTHOR' && project.status === 'SETUP')
+  }
+  if (project.role === 'MAIN_REVIEWER' && role === 'LEAD_AUTHOR' && project.status === 'SETUP') {
     return;
+  }
   throw forbidden('This invitation role is not allowed for your project.');
 }
+
 export function listProjects(client: Database, userId: string): Promise<MemberProject[]> {
   return repository.listProjects(client, userId);
 }
+
 export async function getProject(
   database: Database,
   id: string,
@@ -62,16 +81,21 @@ export async function getProject(
     'LEAD_AUTHOR',
     'MAIN_REVIEWER',
   ]);
-  if (!project) throw notFound('Project not found');
+  if (!project) {
+    throw notFound('Project not found');
+  }
   return project;
 }
+
 export async function createProject(
   client: PoolClient,
   userId: string,
   input: CreateProject,
 ): Promise<ProjectDetailResponse> {
-  const template = templates.find((t) => t.key === input.templateKey);
-  if (!template) throw badRequest('Unknown project template', 'VALIDATION_ERROR');
+  const template = templates.find((template) => template.key === input.templateKey);
+  if (!template) {
+    throw badRequest('Unknown project template', 'VALIDATION_ERROR');
+  }
   const id = await repository.insertProject(client, userId, input, template.version);
   await repository.addMember(client, id, userId, input.creatorRole);
   await repository.saveStructure(client, id, {
@@ -85,48 +109,60 @@ export async function createProject(
     template: template.key,
     templateVersion: template.version,
   });
+
   return getProject(client, id, userId);
 }
+
 export async function updateDraft(
   client: PoolClient,
   id: string,
   userId: string,
   input: Draft,
 ): Promise<ProjectDetailResponse> {
-  const project = await projectFor(client, id, userId);
+  const project = await requireMemberProjectForUpdate(client, id, userId);
   requireRole(project, 'LEAD_AUTHOR', 'AUTHOR');
   requireVersion(project, input.version);
   requireDraft(project);
+
   const before = {
     title: project.title,
     description: project.description,
     ...(await repository.structure(client, id)),
   };
-  await repository.updateBrief(client, id, input);
-  await repository.saveStructure(client, id, {
+
+  const structure = {
     ...input,
     milestones: resolveItems(input.milestones, before.milestones),
     deliverables: resolveItems(input.deliverables, before.deliverables),
-  });
+  };
+
+  await repository.updateBrief(client, id, input);
+  await repository.saveStructure(client, id, structure);
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'DRAFT_UPDATED', { before, after: input });
+
   return getProject(client, id, userId);
 }
+
 export async function invite(
   client: PoolClient,
   id: string,
   userId: string,
   input: Invitation,
 ): Promise<InvitationResponse> {
-  const project = await projectFor(client, id, userId);
-  mayInvite(project, input.role);
-  if (await repository.memberByEmail(client, id, input.email))
+  const project = await requireMemberProjectForUpdate(client, id, userId);
+  requireInvitationPermission(project, input.role);
+  if (await repository.memberByEmail(client, id, input.email)) {
     throw conflict('That person is already a project member.');
-  if (input.role !== 'AUTHOR' && (await repository.hasRole(client, id, input.role)))
+  }
+  if (input.role !== 'AUTHOR' && (await repository.hasRole(client, id, input.role))) {
     throw conflict('That role is already assigned.');
+  }
   await repository.cancelSupersededInvitations(client, id, input.email);
-  if (input.role !== 'AUTHOR' && (await repository.hasPendingRole(client, id, input.role)))
+  if (input.role !== 'AUTHOR' && (await repository.hasPendingRole(client, id, input.role))) {
     throw conflict('Cancel the existing invitation for this role first.');
+  }
+
   const token = generateOpaqueToken();
   const invitation = await repository.insertInvitation(
     client,
@@ -142,21 +178,26 @@ export async function invite(
   });
   return { ...invitation, invitationUrl: `${env.APP_ORIGIN}/invitations/accept#token=${token}` };
 }
+
 export async function cancelInvitation(
   client: PoolClient,
   id: string,
   invitationId: string,
   userId: string,
 ): Promise<void> {
-  const project = await projectFor(client, id, userId);
+  const project = await requireMemberProjectForUpdate(client, id, userId);
   const role = await repository.invitationRole(client, id, invitationId);
-  if (!role) throw notFound('Invitation not found');
-  mayInvite(project, role);
-  if (!(await repository.cancelInvitation(client, id, invitationId)))
+  if (!role) {
+    throw notFound('Invitation not found');
+  }
+  requireInvitationPermission(project, role);
+  if (!(await repository.cancelInvitation(client, id, invitationId))) {
     throw conflict('This invitation is no longer pending.');
+  }
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'INVITATION_CANCELLED', { invitationId });
 }
+
 export async function acceptInvitation(
   client: PoolClient,
   userId: string,
@@ -164,25 +205,33 @@ export async function acceptInvitation(
 ): Promise<{ projectId: string }> {
   const hash = hashOpaqueToken(token);
   const id = await repository.invitationProjectId(client, hash);
-  if (!id)
+  if (!id) {
     throw badRequest('This invitation is invalid or no longer available.', 'INVITATION_INVALID');
+  }
   const project = await repository.findProjectForUpdate(client, id);
   const invitation = await repository.pendingInvitationForUpdate(client, hash);
-  if (!project || !invitation)
+  if (!project || !invitation) {
     throw badRequest('This invitation is invalid or no longer available.', 'INVITATION_INVALID');
+  }
   const account = await repository.account(client, userId);
-  if (!account?.email_verified_at || account.email !== invitation.email)
+  if (!account?.email_verified_at || account.email !== invitation.email) {
     throw forbidden(
       'Sign in with the verified email address this invitation was sent to.',
       'INVITATION_EMAIL_MISMATCH',
     );
+  }
   const inviterRole = await repository.memberRole(client, id, invitation.invited_by_user_id);
-  if (!inviterRole) throw forbidden('The inviter no longer has access.');
-  mayInvite({ ...project, role: inviterRole }, invitation.role);
-  if (await repository.memberRole(client, id, userId))
+  if (!inviterRole) {
+    throw forbidden('The inviter no longer has access.');
+  }
+  requireInvitationPermission({ ...project, role: inviterRole }, invitation.role);
+  if (await repository.memberRole(client, id, userId)) {
     throw conflict('You are already a member of this project.');
-  if (invitation.role !== 'AUTHOR' && (await repository.hasRole(client, id, invitation.role)))
+  }
+  if (invitation.role !== 'AUTHOR' && (await repository.hasRole(client, id, invitation.role))) {
     throw conflict('This role is already assigned.');
+  }
+
   await repository.addMember(client, id, userId, invitation.role);
   await repository.consumeInvitation(client, invitation.id);
   await repository.touch(client, id);
@@ -190,31 +239,50 @@ export async function acceptInvitation(
     invitationId: invitation.id,
     role: invitation.role,
   });
-  if (
-    (await repository.hasRole(client, id, 'LEAD_AUTHOR')) &&
-    (await repository.hasRole(client, id, 'MAIN_REVIEWER')) &&
-    (await repository.activateExternal(client, id))
-  ) {
-    await repository.event(client, id, userId, 'PROJECT_ACTIVATED', {
+  await activateExternalProjectIfReady(client, id, userId);
+
+  return { projectId: id };
+}
+
+async function activateExternalProjectIfReady(
+  client: PoolClient,
+  projectId: string,
+  userId: string,
+): Promise<void> {
+  const hasLeadAuthor = await repository.hasRole(client, projectId, 'LEAD_AUTHOR');
+  if (!hasLeadAuthor) {
+    return;
+  }
+
+  const hasMainReviewer = await repository.hasRole(client, projectId, 'MAIN_REVIEWER');
+  if (!hasMainReviewer) {
+    return;
+  }
+
+  const activated = await repository.activateExternal(client, projectId);
+  if (activated) {
+    await repository.event(client, projectId, userId, 'PROJECT_ACTIVATED', {
       route: 'EXTERNALLY_APPROVED',
     });
   }
-  return { projectId: id };
 }
+
 export async function submitProposal(
   client: PoolClient,
   id: string,
   userId: string,
   version: number,
 ): Promise<ProjectDetailResponse> {
-  const project = await projectFor(client, id, userId);
+  const project = await requireMemberProjectForUpdate(client, id, userId);
   requireRole(project, 'LEAD_AUTHOR');
   requireVersion(project, version);
   requireDraft(project);
-  if (project.approval_route !== 'IN_PLATFORM_PROPOSAL')
+  if (project.approval_route !== 'IN_PLATFORM_PROPOSAL') {
     throw conflict('This project uses external approval.');
-  if (!(await repository.hasRole(client, id, 'MAIN_REVIEWER')))
+  }
+  if (!(await repository.hasRole(client, id, 'MAIN_REVIEWER'))) {
     throw conflict('Your main Reviewer must join before you submit.');
+  }
   await repository.insertProposal(
     client,
     id,
@@ -228,8 +296,10 @@ export async function submitProposal(
   );
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'PROPOSAL_SUBMITTED', { version });
+
   return getProject(client, id, userId);
 }
+
 export async function decideProposal(
   client: PoolClient,
   id: string,
@@ -237,12 +307,19 @@ export async function decideProposal(
   userId: string,
   input: Decision,
 ): Promise<ProjectDetailResponse> {
-  const project = await projectFor(client, id, userId);
+  const project = await requireMemberProjectForUpdate(client, id, userId);
   requireRole(project, 'MAIN_REVIEWER');
   requireVersion(project, input.version);
-  if (project.status !== 'PROPOSAL_IN_REVIEW') throw conflict('No proposal is awaiting review.');
-  if (!(await repository.recordDecision(client, id, proposalId, userId, input)))
+  if (project.status !== 'PROPOSAL_IN_REVIEW') {
+    throw conflict('No proposal is awaiting review.');
+  }
+  const latestProposal = await repository.findLatestProposal(client, id);
+  if (latestProposal?.id !== proposalId || latestProposal.decision !== null) {
     throw conflict('This proposal is no longer awaiting a decision.');
+  }
+  if (!(await repository.recordDecision(client, id, proposalId, userId, input))) {
+    throw conflict('This proposal is no longer awaiting a decision.');
+  }
   const statuses: Record<Decision['decision'], ProjectStatus> = {
     APPROVE: 'ACTIVE',
     REQUEST_CHANGES: 'PROPOSAL_CHANGES_REQUESTED',
@@ -255,27 +332,74 @@ export async function decideProposal(
     decision: input.decision,
     feedback: input.feedback,
   });
+
   return getProject(client, id, userId);
 }
 
-// Legacy clients identify items by position. Clients sending IDs can reorder safely.
-// Reject foreign/duplicate IDs before any write; new entries receive server-generated IDs.
+// Explicit IDs are authoritative. An omitted ID alongside explicit IDs means a new item.
 function resolveItems(input: Draft['milestones'], existing: StructureItem[]): StructureItem[] {
-  const known = new Set(existing.map((item) => item.id));
-  const explicit = new Set<string>();
+  const existingIds = new Set(existing.map((item) => item.id));
+  const suppliedIds = new Set<string>();
   for (const item of input) {
     if (item.id !== undefined) {
-      if (!known.has(item.id) || explicit.has(item.id))
+      if (!existingIds.has(item.id) || suppliedIds.has(item.id)) {
         throw badRequest(
           'A structure item is missing, duplicated, or belongs to another project.',
           'INVALID_STRUCTURE_ITEM',
         );
-      explicit.add(item.id);
+      }
+      suppliedIds.add(item.id);
     }
   }
-  return input.map((item, position) => {
-    const previous = existing[position];
-    const id = item.id ?? (explicit.size === 0 && previous ? previous.id : randomUUID());
-    return { id, title: item.title, required: item.required };
+  if (suppliedIds.size === 0) {
+    return resolveLegacyItems(input, existing);
+  }
+
+  return input.map((item) => ({ ...item, id: item.id ?? randomUUID() }));
+}
+
+// Old clients send no IDs. Keep positional renames compatible, but recognize unchanged
+// titles before inferring positions so deletion/insertion/reordering cannot shift IDs.
+function resolveLegacyItems(
+  input: Draft['milestones'],
+  existing: StructureItem[],
+): StructureItem[] {
+  const sameTitleOrder =
+    input.length === existing.length &&
+    input.every((item, index) => item.title === existing[index]?.title);
+  if (sameTitleOrder) {
+    return input.map((item, index) => ({ ...item, id: existing[index]!.id }));
+  }
+
+  const ambiguous = () =>
+    badRequest(
+      'Include item IDs when combining renames with structural changes or editing duplicate titles.',
+      'STRUCTURE_IDS_REQUIRED',
+    );
+  const matches = input.map((item) => {
+    const candidates = existing.filter((previous) => previous.title === item.title);
+    if (
+      candidates.length > 1 ||
+      (candidates.length === 1 && input.filter((entry) => entry.title === item.title).length > 1)
+    ) {
+      throw ambiguous();
+    }
+    return candidates[0];
   });
+
+  const positionalRename =
+    input.length === existing.length &&
+    matches.every((match, index) => !match || match.id === existing[index]?.id);
+  if (positionalRename) {
+    return input.map((item, index) => ({ ...item, id: existing[index]!.id }));
+  }
+
+  const retainedIds = new Set(matches.map((item) => item?.id));
+  const removedItems = existing.some((item) => !retainedIds.has(item.id));
+  const newItems = matches.some((item) => !item);
+  if (removedItems && newItems) {
+    throw ambiguous();
+  }
+
+  return input.map((item, index) => ({ ...item, id: matches[index]?.id ?? randomUUID() }));
 }

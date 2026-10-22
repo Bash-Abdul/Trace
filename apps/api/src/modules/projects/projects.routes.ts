@@ -1,3 +1,6 @@
+import { notifications } from '../milestones/milestones.controller.js';
+import { notificationParams } from '../milestones/milestones.schema.js';
+import { milestonesRouter } from '../milestones/milestones.routes.js';
 import { Router } from 'express';
 import { validate } from '../../middleware/validate.js';
 import {
@@ -67,4 +70,12 @@ projectsRouter.post(
   '/:id/proposals/:proposalId/decision',
   validate({ params: proposalParamsSchema, body: decisionSchema }),
   authenticateMutation(controller.decideProposal),
+);
+
+projectsRouter.use('/:projectId/milestones/:milestoneId', milestonesRouter);
+
+projectsRouter.get(
+  '/:projectId/notifications',
+  validate({ params: notificationParams }),
+  authenticateRead(notifications),
 );

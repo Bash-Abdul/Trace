@@ -1,6 +1,16 @@
 .live-workspace {
   min-height: 100vh;
 }
+.live-workspace > .skip-link:not(:focus) {
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+}
+.live-workspace > .skip-link:focus {
+  left: 1rem;
+}
 .live-header {
   display: flex;
   align-items: center;

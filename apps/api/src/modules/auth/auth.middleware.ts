@@ -16,7 +16,9 @@ export const authBrowserControls: RequestHandler = (request, response, next) => 
     'Referrer-Policy': 'no-referrer',
     'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'",
   });
-  if (env.NODE_ENV === 'production') response.set('Strict-Transport-Security', 'max-age=31536000');
+  if (env.NODE_ENV === 'production') {
+    response.set('Strict-Transport-Security', 'max-age=31536000');
+  }
   const origin = request.get('origin');
   const referer = request.get('referer');
   let refererOrigin: string | undefined;
@@ -29,21 +31,25 @@ export const authBrowserControls: RequestHandler = (request, response, next) => 
     (origin && origin !== env.APP_ORIGIN) ||
     (!origin && refererOrigin && refererOrigin !== env.APP_ORIGIN) ||
     request.get('sec-fetch-site') === 'cross-site'
-  )
+  ) {
     return next(forbidden('Untrusted request origin', 'ORIGIN_INVALID'));
+  }
   next();
 };
 
 export const authRateLimit: RequestHandler = async (request, response, next) => {
-  if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return next();
+  if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) {
+    return next();
+  }
   const parsedBody = rateLimitBodySchema.safeParse(request.body);
   const email = parsedBody.success ? parsedBody.data.email : null;
   const keys = [{ value: `network:${request.ip ?? 'unknown'}`, limit: 100 }];
-  if (email)
+  if (email) {
     keys.push({
       value: `account:${request.path.toLowerCase().replace(/\/+$/, '')}:${email}`,
       limit: 10,
     });
+  }
   const denied = await withTransaction(async (client) => {
     let limited = false;
     for (const key of keys) {
@@ -54,15 +60,27 @@ export const authRateLimit: RequestHandler = async (request, response, next) => 
         `INSERT INTO auth_rate_limits (key, attempts, expires_at)
         VALUES ($1, 1, now() + interval '15 minutes')
         ON CONFLICT (key) DO UPDATE SET
-          attempts = CASE WHEN auth_rate_limits.expires_at <= now() THEN 1 ELSE auth_rate_limits.attempts + 1 END,
-          expires_at = CASE WHEN auth_rate_limits.expires_at <= now() THEN now() + interval '15 minutes' ELSE auth_rate_limits.expires_at END
+          attempts = CASE
+            WHEN auth_rate_limits.expires_at <= now() THEN 1
+            ELSE auth_rate_limits.attempts + 1
+          END,
+          expires_at = CASE
+            WHEN auth_rate_limits.expires_at <= now() THEN now() + interval '15 minutes'
+            ELSE auth_rate_limits.expires_at
+          END
         RETURNING attempts`,
         [digest],
       );
       const attempts = result.rows[0]!.attempts;
-      if (attempts > key.limit) limited = true;
-      if (attempts === key.limit + 1) await audit(client, 'AUTH_RATE_LIMITED', null);
-      if (limited) break;
+      if (attempts > key.limit) {
+        limited = true;
+      }
+      if (attempts === key.limit + 1) {
+        await audit(client, 'AUTH_RATE_LIMITED', null);
+      }
+      if (limited) {
+        break;
+      }
     }
     return limited;
   });
@@ -75,8 +93,9 @@ export const authRateLimit: RequestHandler = async (request, response, next) => 
 
 export const requireMutationOrigin: RequestHandler = (request, _response, next) => {
   // Authenticated mutations require positive origin evidence in addition to CSRF.
-  if (!request.get('origin') && !request.get('referer'))
+  if (!request.get('origin') && !request.get('referer')) {
     return next(forbidden('Origin required', 'ORIGIN_REQUIRED'));
+  }
   next();
 };
 
@@ -92,8 +111,11 @@ export function authenticateRead<Params, Body, Result>(
       sessionId: session.id,
       db: pool,
     });
-    if (result.status === 204) response.status(204).end();
-    else response.status(result.status).json(result.body);
+    if (result.status === 204) {
+      response.status(204).end();
+    } else {
+      response.status(result.status).json(result.body);
+    }
   };
 }
 
@@ -107,7 +129,10 @@ export function authenticateMutation<Params, Body, Result>(
       (client, session) =>
         handler(request, { userId: session.user_id, sessionId: session.id, db: client }),
     );
-    if (result.status === 204) response.status(204).end();
-    else response.status(result.status).json(result.body);
+    if (result.status === 204) {
+      response.status(204).end();
+    } else {
+      response.status(result.status).json(result.body);
+    }
   };
 }

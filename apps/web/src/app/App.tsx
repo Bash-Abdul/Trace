@@ -1,3 +1,4 @@
+import { LiveMilestonePage } from '../modules/milestones/LiveMilestonePage';
 import { Route, Routes, Link } from 'react-router-dom';
 import { LandingPage } from '../modules/landing/LandingPage';
 import { AppShell } from './layout/AppShell';
@@ -46,6 +47,10 @@ export function App() {
             <Route index element={<WorkspacePage />} />
             <Route path="new" element={<CreateProjectPage />} />
             <Route path="projects/:projectId" element={<LiveProjectPage />} />
+            <Route
+              path="projects/:projectId/milestones/:milestoneId"
+              element={<LiveMilestonePage />}
+            />
           </Route>
         </Route>
       </Route>
