@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   Bell,
   BookOpen,
-  ChevronDown,
   ChevronsUpDown,
   CircleHelp,
   ClipboardCheck,
@@ -16,9 +15,10 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import { useWorkspaceView } from '../providers/WorkspaceViewProvider';
+import { useAuth } from '../../modules/auth/AuthProvider';
 import { useDemo } from '../providers/DemoProvider';
 import { Avatar, Modal } from '../../shared/ui/Primitives';
-import { personaNames, type Persona } from '../../modules/projects/model/project';
 
 const navigation = [
   { to: '/overview', label: 'Overview', icon: LayoutDashboard },
@@ -37,7 +37,17 @@ function isMobileViewport() {
   return window.matchMedia(mobileQuery).matches;
 }
 export function AppShell() {
-  const { projects, persona, setPersona, toast, dismiss } = useDemo();
+  const { toast, dismiss } = useDemo();
+  const { projects: liveProjects, persona, queue } = useWorkspaceView();
+  const { session } = useAuth();
+  const projects = (liveProjects ?? [])
+    .filter((p) =>
+      persona === 'reviewer'
+        ? ['MAIN_REVIEWER', 'DORMANT_REVIEWER'].includes(p.role)
+        : ['LEAD_AUTHOR', 'AUTHOR'].includes(p.role),
+    )
+    .map((p) => ({ ...p, color: 'sage' }));
+  const email = session?.user.email ?? '';
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -47,17 +57,9 @@ export function AppShell() {
   const current =
     navigation.find((n) => n.to === location.pathname)?.label ??
     (location.pathname.includes('projects') ? 'Project workspace' : 'Workspace settings');
-  const pending = projects.reduce(
-    (count, p) =>
-      count +
-      (persona === 'reviewer'
-        ? p.milestones.filter((m) => m.status === 'awaiting-review').length +
-          Number(p.state === 'proposal-review')
-        : p.feedback.filter((f) => f.status === 'open').length),
-    0,
-  );
+  const pending = queue.data?.items.filter((item) => item.needs_attention).length ?? 0;
   return (
-    <div className="app-shell">
+    <div className="app-shell connected-workspace">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
@@ -78,10 +80,12 @@ export function AppShell() {
           trace<span className="brand-period">.</span>
         </Link>
         <div className="workspace-switch">
-          <span className="workspace-initial">B</span>
+          <span className="workspace-initial">{email.charAt(0).toUpperCase()}</span>
           <div>
-            <strong>My workspace</strong>
-            <small>Personal workspace</small>
+            <strong>{persona === 'reviewer' ? 'Reviewer workspace' : 'Author workspace'}</strong>
+            <small>
+              {persona === 'reviewer' ? 'Reviews and feedback' : 'Projects and progress'}
+            </small>
           </div>
           <ChevronsUpDown size={15} />
         </div>
@@ -96,13 +100,20 @@ export function AppShell() {
               onClick={() => setMenuOpen(false)}
             >
               <Icon size={19} strokeWidth={1.7} />
-              <span>{label}</span>
-              {to === '/reviews' && pending > 0 && <span className="nav-count">{pending}</span>}
+              <span>
+                {to === '/projects' && persona === 'reviewer' ? 'Assigned projects' : label}
+              </span>
+              {to === '/reviews' && pending > 0 && (
+                <span className="nav-count">
+                  {pending}
+                  {queue.data?.truncated ? '+' : ''}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
         <div className="sidebar-projects">
-          <p className="nav-caption">PINNED PROJECTS</p>
+          <p className="nav-caption">YOUR PROJECTS</p>
           {projects.slice(0, 2).map((project) => (
             <Link
               key={project.id}
@@ -116,15 +127,16 @@ export function AppShell() {
           ))}
         </div>
         <div className="sidebar-bottom">
-          <Link className="nav-item" to="/workspace">
-            Your real projects
+          <Link className="nav-item" to="/demo/projects">
+            Sample projects
           </Link>
           <div className="sidebar-note">
             <Sparkles size={19} />
             <strong>The journey matters.</strong>
             <p>Every small step adds to the story of your work.</p>
             <Link to="/portfolio" onClick={() => setMenuOpen(false)}>
-              See your process portfolio <ArrowUpRight size={14} />
+              {persona === 'reviewer' ? 'Explore process portfolios' : 'See your process portfolio'}{' '}
+              <ArrowUpRight size={14} />
             </Link>
           </div>
           <Link className="nav-item" to="/account" onClick={() => setMenuOpen(false)}>
@@ -140,10 +152,10 @@ export function AppShell() {
             Settings
           </NavLink>
           <div className="profile">
-            <Avatar name={personaNames[persona]} />
+            <Avatar name={email} />
             <div>
-              <strong>{personaNames[persona]}</strong>
-              <small>{persona === 'author' ? 'Project Author' : 'Main Reviewer'}</small>
+              <strong>{email}</strong>
+              <small>{persona === 'author' ? 'Author view' : 'Reviewer view'}</small>
             </div>
             <span className="online-dot" />
           </div>
@@ -166,7 +178,10 @@ export function AppShell() {
           <div className="topbar-actions">
             <span className="demo-chip">
               <span />
-              Interactive demo
+              {location.pathname.startsWith('/demo') ||
+              ['/portfolio', '/activity', '/settings'].includes(location.pathname)
+                ? 'Demo preview'
+                : 'Live workspace'}
             </span>
             <button
               className="icon-button"
@@ -181,22 +196,12 @@ export function AppShell() {
               aria-label="View activity"
             >
               <Bell size={19} />
-              <i />
             </Link>
             <div className="persona-select">
-              <Avatar name={personaNames[persona]} small />
-              <label className="sr-only" htmlFor="persona">
-                Demo perspective
-              </label>
-              <select
-                id="persona"
-                value={persona}
-                onChange={(e) => setPersona(e.target.value as Persona)}
-              >
-                <option value="author">Author view</option>
-                <option value="reviewer">Reviewer view</option>
-              </select>
-              <ChevronDown size={13} />
+              <Avatar name={email} small />
+              <span aria-label="Workspace perspective">
+                {persona === 'reviewer' ? 'Reviewer view' : 'Author view'}
+              </span>
             </div>
           </div>
         </header>
@@ -205,7 +210,7 @@ export function AppShell() {
         </main>
         <footer className="workspace-footer">
           <span>Made for the work behind the work.</span>
-          <span>Trace · Demo workspace</span>
+          <span>Trace · Your workspace</span>
         </footer>
       </div>
       {toast && (
@@ -226,12 +231,13 @@ export function AppShell() {
             <ol>
               <li>Open a project and explore its milestones.</li>
               <li>As the Author, save a draft and submit evidence.</li>
-              <li>Switch to Reviewer view to approve work or request a revision.</li>
+              <li>Reviewers open their assigned projects to approve work or request a revision.</li>
               <li>Respond to feedback, then explore your printable process portfolio.</li>
             </ol>
             <p className="muted">
-              This is a local prototype with fictional records. No emails are sent or files
-              uploaded. Reset the demo in Settings.
+              Projects and milestone workflows use your account. Sections labelled Demo preview use
+              fictional records; changes there stay in your browser. The view switch changes
+              presentation, never project permissions.
             </p>
             <button className="button primary" onClick={() => setHelpOpen(false)}>
               Let’s explore <ArrowUpRight size={16} />

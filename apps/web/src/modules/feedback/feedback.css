@@ -119,3 +119,13 @@
     flex-direction: column;
   }
 }
+
+.queue-excerpt {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-width: 65ch;
+}
+.review-queue a > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

@@ -18,7 +18,7 @@ export function MilestoneList({ project }: { project: Project }) {
           <Link
             className="milestone-row"
             key={milestone.id}
-            to={`/projects/${project.id}/milestones/${milestone.id}`}
+            to={`/demo/projects/${project.id}/milestones/${milestone.id}`}
           >
             <span className={`milestone-state state-${milestone.status}`}>
               <Icon size={17} />

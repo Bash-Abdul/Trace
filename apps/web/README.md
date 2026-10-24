@@ -1,39 +1,67 @@
 # Trace web
 
-A working authentication frontend and clickable, responsive visual prototype of the Author / main Reviewer workflow described in `../api/docs/backend-engineering-plan.md`. React, TypeScript, Vite, React Router, Lucide icons, and locally bundled DM Sans / Newsreader fonts.
+The signed-in Trace workspace uses React, TypeScript, Vite, React Router, Lucide icons,
+and locally bundled DM Sans / Newsreader fonts. The original sample layout now reads
+real API data for connected features, with labelled demo previews for unfinished features.
 
-Run from the repository root:
+Run from the repository root (separate terminals for API and web):
 
 ```sh
-pnpm install
+pnpm dev:db
+pnpm dev:api
 pnpm dev:web
 ```
 
-Open http://127.0.0.1:5173 for the public landing page, then enter the demo at `/overview`. Choose Author or Reviewer in the workspace top bar. Explore project creation, invitation acceptance, proposal approval, draft evidence, milestone submission and revisions, feedback resolution, final approval, and printable process portfolios. Settings can restore the original fictional projects.
+Open http://localhost:5173 and sign in. `/overview` shows real project counts;
+`/projects` supports search, filtering, creation and project details. `/reviews`
+combines proposal reviews, milestone reviews and unresolved milestone feedback,
+with attention/type/involvement filters for Authors and Reviewers. Open a project's milestone for
+text/link drafts, submissions, decisions and feedback. Old `/workspace` URLs redirect
+to the matching integrated routes. `/account` manages sessions; `/settings` retains the demo settings.
 
 ## Architecture
 
-- `src/app`: routing, application shell, demo state provider, global styles.
-- `src/modules/auth`: API client, in-memory cookie-session state, auth forms, protected account and session management.
-- `src/modules/landing`: responsive public landing page and product previews.
-- `src/modules/dashboard`: workspace overview.
-- `src/modules/projects`: project pages/components, typed domain model, fixtures, and pure workflow transitions.
-- `src/modules/submissions`: milestone editor, evidence previews, version history.
-- `src/modules/feedback`: conversations and review queue.
-- `src/modules/activity`: shared activity timeline.
-- `src/modules/portfolio`: live / completed record and print layout.
-- `src/modules/settings`: demo data controls.
-- `src/shared/ui`: reusable visual primitives.
+- `src/app`: authenticated routing, responsive sidebar shell and shared styles.
+- `src/modules/auth`: cookie-session state, auth forms and account/session management.
+- `src/modules/projects`: API-backed project list, cards and list-loading hook.
+- `src/modules/dashboard`: overview derived from project summaries and the review queue.
+- `src/modules/reviews`: shared live queue API, refresh hook and filtered review page.
+- `src/modules/workspace`: existing project creation, brief, proposal, membership and invitation components, plus the shared typed project API client.
+- `src/modules/milestones`: evidence editor, immutable submission history, Reviewer decisions and feedback.
+- `src/shared/ui`: reusable visual components.
 
-`DemoProvider` is the mock data boundary. Components use its typed operations; workflow rules live in `projects/model/workflow.ts`. Local storage is schema-validated and uses the single key `trace.visual-demo.v1`. Backend integration should replace this boundary with server-backed queries/mutations and enforce permissions on the server.
+`WorkspaceViewProvider` shares the live project list, review queue and Author/Reviewer presentation.
+Reviewer-only accounts default to the review desk. The top bar is a fixed view label,
+not a role switch. Mixed-role accounts use Review & feedback for assigned work;
+project pages derive the label from their actual membership role.
+The existing layout, four overview cards, illustration, activity and upcoming panels,
+portfolio preview and navigation are retained.
 
-## Scope and deliberate limitations
+`DemoProvider` remains mounted for unfinished features. Sample projects and their
+milestone/portfolio pages use `/demo/projects/...`; they are labelled Demo preview.
+Demo actions only update browser storage, while `/projects/...` actions use the API.
+Portfolio, activity, demo feedback and settings remain explorable rather than being
+replaced with placeholders. Existing CSRF/session protections apply to live mutations.
 
-Project pages remain fictional browser data. The persona selector is a demonstration control, not authorization. Evidence documents and final deliverables are samples; no files are uploaded. External evidence links open only HTTP(S) URLs. Authentication pages make real API requests; registration and recovery enqueue email jobs. The sample workspace stays public and is separate from the protected `/account` page.
+Creation supports editable template copies and a Custom structure option. Milestones
+and deliverables have stable editable rows with reorder and required/optional controls.
+Proposal feedback is shown in Overview → Proposal history & feedback. The Milestone
+feedback tab leads to version-specific feedback inside each milestone.
 
-The four template labels are illustrative: the plan does not specify their final names. The invitation flow simulates one fixed Reviewer. Proposal editing, real project persistence, membership/succession management, and actual uploads remain integration work. Completed demo projects are locked, preserving their final record in browser storage; production snapshots need durable server storage. Browser reset clears this demo's projects, including completed records.
+## Current limits
 
-Milestone counts are shown instead of an invented combined project percentage. Author-addressed feedback remains unresolved until the Reviewer resolves it. Submitted evidence is copied into version history; revisions start a new version.
+Live project lists and counts cover at most 100 recently updated projects. The
+approved-milestone total, upcoming schedule and global activity remain
+explicitly labelled sample data. Review and unresolved-feedback counts are live,
+bounded to 200 recent items per queue type with a truncation notice. The queue
+refreshes on navigation, focus and every 30 seconds while visible; it has no
+read/unread notification history. The original sample review page is at `/demo/reviews`.
+Live project tabs restore Overview, Milestones, Evidence, Feedback, Activity and Team;
+evidence and feedback tabs link to the live milestone workflows.
+
+File/image uploads (#2), invitation email delivery (#3), and app-wide notifications
+(#4) remain follow-ups. Invitation links are shared manually; registration/recovery
+emails still require the email worker (#1). No database migration is needed.
 
 ## Checks
 
@@ -45,7 +73,7 @@ pnpm --filter @trace/web build
 pnpm --filter @trace/web test:e2e
 ```
 
-Browser tests use Playwright Chromium (`pnpm --filter @trace/web exec playwright install chromium` if needed), start a local Vite server, and cover the interactive workflow and mobile navigation. No production accounts or services are needed.
+Browser tests use Playwright Chromium (`pnpm --filter @trace/web exec playwright install chromium` if needed), start a local Vite server, and cover API-backed lists, empty/error states, session expiry, redirects and mobile navigation. No production accounts or services are needed.
 
 ## Real authentication
 
@@ -86,7 +114,7 @@ For this machine’s current local setup, open `http://localhost:5173` and use `
 
 ## Real project workspace
 
-Sign in, then choose **Open my projects** on `/account`, or visit `/workspace`.
+Sign in, then choose **Open my projects** on `/account`, or visit `/projects`.
 Run `pnpm db:migrate` once for the new project tables. Individual projects invite
 a Reviewer; group leads can also invite Authors. Copy and share the generated
 invitation link yourself; no invitation email is sent. Recipients sign in with
@@ -94,5 +122,6 @@ the verified invited email and accept the link. Proposal submission, revision
 requests and approval are real persisted workflows. External approval activates
 automatically when the initial Author/lead and Reviewer have joined.
 
-The public sample workspace remains at `/overview`; it is separate from your
-real account data. Real milestone evidence/submissions are the next phase.
+The real API browser suite covers group creation, invitation acceptance, shared
+draft editing, proposal revision/approval, and milestone submission, revision,
+feedback resolution and approval through the integrated layout.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const title = z.string().trim().min(1).max(120);
+const startingItem = z.object({ title, required: z.boolean() }).strict();
 
 export const briefSchema = z.object({
   title,
@@ -12,10 +13,18 @@ export const createProjectSchema = briefSchema
   .extend({
     projectType: z.enum(['INDIVIDUAL', 'GROUP']),
     approvalRoute: z.enum(['IN_PLATFORM_PROPOSAL', 'EXTERNALLY_APPROVED']),
-    templateKey: z.enum(['design', 'research', 'software', 'independent']),
+    templateKey: z.enum(['design', 'research', 'software', 'independent', 'custom']),
+    milestones: z.array(startingItem).min(1).max(30).optional(),
+    deliverables: z.array(startingItem).min(1).max(20).optional(),
     creatorRole: z.enum(['LEAD_AUTHOR', 'MAIN_REVIEWER']).default('LEAD_AUTHOR'),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) =>
+      input.templateKey !== 'custom' ||
+      (input.milestones !== undefined && input.deliverables !== undefined),
+    { message: 'Custom projects require milestones and deliverables' },
+  );
 
 export const versionSchema = z.object({ version: z.number().int().positive() }).strict();
 

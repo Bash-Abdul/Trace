@@ -25,7 +25,7 @@ export function AcceptInvitationPage() {
         method: 'POST',
         body: { token },
       });
-      navigate(`/workspace/projects/${result.projectId}`, { replace: true });
+      navigate(`/projects/${result.projectId}`, { replace: true });
     } catch (e) {
       setError(projectMessage(e));
     } finally {

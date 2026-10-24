@@ -28,7 +28,7 @@ export function ProjectNotifications({ projectId }: { projectId: string }) {
       <ul>
         {notifications.map((notification) => (
           <li key={notification.id}>
-            <Link to={`/workspace/projects/${projectId}/milestones/${notification.milestone_id}`}>
+            <Link to={`/projects/${projectId}/milestones/${notification.milestone_id}`}>
               {notification.action.replaceAll('_', ' ').toLowerCase()}
             </Link>{' '}
             · {new Date(notification.created_at).toLocaleString()}

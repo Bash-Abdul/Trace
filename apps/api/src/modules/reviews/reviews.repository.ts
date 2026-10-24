@@ -1,0 +1,71 @@
+import type { Database } from '../../config/db.js';
+import type { Role } from '../projects/projects.types.js';
+import type { QueueRecord } from './reviews.types.js';
+export async function proposals(db: Database, userId: string, roles: Role[], limit: number) {
+  return (
+    await db.query<QueueRecord>(
+      `
+    SELECT v.id, p.id AS project_id, p.title AS project_title, m.role,
+      NULL::uuid AS milestone_id, NULL::text AS milestone_title,
+      v.version AS number, p.status AS state, v.feedback AS body,
+      false AS blocking, COALESCE(v.decided_at, v.submitted_at) AS updated_at
+    FROM projects p
+    JOIN project_memberships m ON m.project_id = p.id AND m.user_id = $1
+    JOIN LATERAL (
+      SELECT id, version, feedback, submitted_at, decided_at
+      FROM project_proposals WHERE project_id = p.id ORDER BY version DESC LIMIT 1
+    ) v ON true
+    WHERE m.role = ANY($2::text[])
+      AND p.status IN ('PROPOSAL_IN_REVIEW', 'PROPOSAL_CHANGES_REQUESTED')
+    ORDER BY updated_at DESC, v.id
+    LIMIT $3`,
+      [userId, roles, limit],
+    )
+  ).rows;
+}
+export async function submissions(db: Database, userId: string, roles: Role[], limit: number) {
+  return (
+    await db.query<QueueRecord>(
+      `
+    SELECT v.id, p.id AS project_id, p.title AS project_title, m.role,
+      pm.id AS milestone_id, pm.title AS milestone_title,
+      v.number, s.state, v.feedback AS body, false AS blocking,
+      COALESCE(v.decided_at, v.submitted_at) AS updated_at
+    FROM projects p
+    JOIN project_memberships m ON m.project_id = p.id AND m.user_id = $1
+    JOIN project_milestones pm ON pm.project_id = p.id
+    JOIN milestone_submissions s ON s.milestone_id = pm.id
+    JOIN LATERAL (
+      SELECT id, number, decision, feedback, submitted_at, decided_at
+      FROM milestone_submission_versions WHERE milestone_id = pm.id ORDER BY number DESC LIMIT 1
+    ) v ON true
+    WHERE m.role = ANY($2::text[]) AND p.status = 'ACTIVE'
+      AND (s.state IN ('AWAITING_REVIEW', 'REVISION_REQUESTED')
+        OR (s.state = 'DRAFT' AND v.decision = 'REQUEST_REVISION'))
+    ORDER BY updated_at DESC, v.id
+    LIMIT $3`,
+      [userId, roles, limit],
+    )
+  ).rows;
+}
+export async function feedback(db: Database, userId: string, roles: Role[], limit: number) {
+  return (
+    await db.query<QueueRecord>(
+      `
+    SELECT f.id, p.id AS project_id, p.title AS project_title, m.role,
+      pm.id AS milestone_id, pm.title AS milestone_title,
+      v.number, f.state, f.body, f.blocking,
+      COALESCE((SELECT max(created_at) FROM milestone_feedback_messages WHERE feedback_id = f.id), f.created_at) AS updated_at
+    FROM projects p
+    JOIN project_memberships m ON m.project_id = p.id AND m.user_id = $1
+    JOIN project_milestones pm ON pm.project_id = p.id
+    JOIN milestone_submission_versions v ON v.milestone_id = pm.id
+    JOIN milestone_feedback f ON f.submission_version_id = v.id
+    WHERE m.role = ANY($2::text[]) AND p.status = 'ACTIVE'
+      AND f.state <> 'RESOLVED_BY_REVIEWER'
+    ORDER BY updated_at DESC, f.id
+    LIMIT $3`,
+      [userId, roles, limit],
+    )
+  ).rows;
+}

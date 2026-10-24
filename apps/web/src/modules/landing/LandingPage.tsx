@@ -147,7 +147,7 @@ export function LandingPage() {
             Sign in
           </Link>
           <Link className="button primary" to="/overview">
-            Explore the demo
+            Open workspace
             <ArrowUpRight size={15} />
           </Link>
         </div>
@@ -178,7 +178,9 @@ export function LandingPage() {
                 See how it works<span>↓</span>
               </a>
             </div>
-            <p className="landing-demo-note">Explore with sample projects. No account needed.</p>
+            <p className="landing-demo-note">
+              Sign in to create projects and collaborate with your Reviewer.
+            </p>
             <div className="landing-hero-caption">
               <span className="caption-line" />
               <span>
@@ -333,8 +335,8 @@ export function LandingPage() {
               part of the work.
             </h2>
             <p>
-              Your evidence, reflections, and review decisions come together in a printable process
-              portfolio. A living record as you work. A complete story when you finish.
+              Your evidence and review decisions already stay together in your projects. Printable
+              process portfolios are coming next, to tell the story of how your work grew.
             </p>
             <ul>
               <li>
@@ -349,8 +351,8 @@ export function LandingPage() {
                 <Check size={16} />A clear record of how the outcome developed
               </li>
             </ul>
-            <Link className="landing-secondary" to="/projects/calmer-campus/portfolio">
-              Explore a sample portfolio
+            <Link className="landing-secondary" to="/overview">
+              Explore your workspace
               <ArrowUpRight size={17} />
             </Link>
           </div>
@@ -359,12 +361,12 @@ export function LandingPage() {
           <Sprout size={29} strokeWidth={1.3} />
           <p className="eyebrow">YOUR NEXT CHAPTER STARTS WITH A SMALL STEP</p>
           <h2>Make space for your process.</h2>
-          <p>Take a look around. There’s a project waiting for you.</p>
+          <p>Bring your next idea, and give its progress a place to grow.</p>
           <Link className="button primary" to="/overview">
-            Explore the demo workspace
+            Open your workspace
             <ArrowRight size={17} />
           </Link>
-          <small>Fictional projects. Real room to explore.</small>
+          <small>Your projects, evidence and conversations, together.</small>
         </section>
       </main>
       <footer className="landing-footer landing-container">

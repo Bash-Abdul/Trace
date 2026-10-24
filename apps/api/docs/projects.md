@@ -38,6 +38,20 @@ starting template. Both choices are fixed after creation. Four versioned templat
 presets copy milestone names into project-owned records; they use the existing
 web prototype's starting structures. Templates never change an existing project.
 
+Creation optionally accepts `milestones` (1–30) and `deliverables` (1–20), each
+with `title` and `required`. These override the preset for this project only.
+`templateKey: "custom"` requires both collections. Older preset-only requests
+retain the existing defaults. IDs are generated on the server; the source key and
+version remain immutable provenance. No database migration is needed. This is not
+a reusable user-template library.
+
+The creation form previews and edits the copied structure; the draft editor uses
+explicit IDs so renaming/reordering retains identity and optional flags. Authors
+can edit the structure in SETUP or PROPOSAL_CHANGES_REQUESTED; it is held while
+under proposal review and after activation. A milestone is an ordered stage in
+that structure, not a date or an automatically submitted proposal. Each milestone
+has its own evidence submissions and review history after project activation.
+
 An Author creator receives `LEAD_AUTHOR` (displayed as Author on individual
 projects). A Reviewer creator receives `MAIN_REVIEWER` and can invite the initial
 Author/lead while the project is in setup. One account cannot hold two roles on

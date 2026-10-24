@@ -1,3 +1,4 @@
+import { reviewsRouter } from '../reviews/reviews.routes.js';
 import { notifications } from '../milestones/milestones.controller.js';
 import { notificationParams } from '../milestones/milestones.schema.js';
 import { milestonesRouter } from '../milestones/milestones.routes.js';
@@ -29,6 +30,7 @@ projectsRouter.use((request, response, next) => {
   if (request.method === 'GET') return next();
   return requireMutationOrigin(request, response, next);
 });
+projectsRouter.use('/reviews', reviewsRouter);
 projectsRouter.get('/templates', authenticateRead(controller.listTemplates));
 projectsRouter.get('/', authenticateRead(controller.listProjects));
 projectsRouter.post(

@@ -798,3 +798,81 @@ describe('refactored project transaction and persistence behavior', () => {
     expect(response.headers['retry-after']).toBe('900');
   });
 });
+
+describe('editable starting structures', () => {
+  const base = {
+    title: 'A custom starting plan',
+    description: 'A plan tailored to this project.',
+    objectives: ['Understand the problem'],
+    projectType: 'GROUP',
+    approvalRoute: 'IN_PLATFORM_PROPOSAL',
+    creatorRole: 'LEAD_AUTHOR',
+  };
+  it('creates custom milestones and outputs with their order, flags and independent IDs', async () => {
+    const milestones = [
+      { title: 'Explore the problem', required: true },
+      { title: 'Optional pilot', required: false },
+    ];
+    const deliverables = [
+      { title: 'Research report', required: true },
+      { title: 'Prototype', required: false },
+    ];
+    const response = await post(author, '', {
+      ...base,
+      templateKey: 'custom',
+      milestones,
+      deliverables,
+    });
+    expect(response.status).toBe(201);
+    const project = projectSchema.parse(response.body);
+    projectIds.push(project.id);
+    expect(project.milestones).toEqual(milestones);
+    expect(project.deliverables).toEqual(deliverables);
+    const ids = z
+      .object({
+        milestones: z.array(z.object({ id: z.string().uuid() })),
+        deliverables: z.array(z.object({ id: z.string().uuid() })),
+      })
+      .parse(response.body);
+    expect(new Set([...ids.milestones, ...ids.deliverables].map((item) => item.id)).size).toBe(4);
+    const stored = await pool.query(
+      'SELECT template_key, template_version FROM projects WHERE id=$1',
+      [project.id],
+    );
+    expect(stored.rows[0]).toEqual({ template_key: 'custom', template_version: 1 });
+    expect((await get(author, project.id)).milestones).toEqual(milestones);
+  });
+  it('overrides a template copy without altering the shared template or legacy defaults', async () => {
+    const response = await post(reviewer, '', {
+      ...base,
+      creatorRole: 'MAIN_REVIEWER',
+      templateKey: 'design',
+      milestones: [{ title: 'Tailored review stage', required: false }],
+      deliverables: [{ title: 'Design notes', required: true }],
+    });
+    expect(response.status).toBe(201);
+    const project = projectSchema.parse(response.body);
+    projectIds.push(project.id);
+    expect(project.milestones).toEqual([{ title: 'Tailored review stage', required: false }]);
+    expect(project.role).toBe('MAIN_REVIEWER');
+    const legacy = await create();
+    expect(legacy.milestones[0]?.title).toBe('Project brief & proposal');
+    expect(legacy.milestones.length).toBe(5);
+    expect(legacy.deliverables).toEqual([{ title: 'Final outcome & reflection', required: true }]);
+  });
+  it('rejects incomplete, empty, oversized or client-assigned starting structures', async () => {
+    const item = { title: 'Stage', required: true };
+    for (const structure of [
+      {},
+      { milestones: [item] },
+      { milestones: [], deliverables: [item] },
+      { milestones: [item], deliverables: [] },
+      { milestones: Array.from({ length: 31 }, () => item), deliverables: [item] },
+      { milestones: [{ ...item, id: randomUUID() }], deliverables: [item] },
+    ]) {
+      expect(
+        (await post(author, '', { ...base, templateKey: 'custom', ...structure })).status,
+      ).toBe(400);
+    }
+  });
+});

@@ -27,12 +27,12 @@ export function MilestoneFeedback({
   }
   return (
     <section className="panel form-panel live-section">
-      <h2>Feedback</h2>
-      {!detail.feedback.length && <p>No feedback yet.</p>}
+      <h2>Milestone feedback</h2>
+      {!detail.feedback.length && <p>No milestone feedback yet.</p>}
       {detail.feedback.map((thread) => (
         <article key={thread.id} className="evidence-item">
           <h3>
-            {thread.blocking ? 'Blocking feedback' : 'Feedback'} · Version{' '}
+            {thread.blocking ? 'Blocking milestone feedback' : 'Milestone feedback'} · Version{' '}
             {
               detail.submissions.find(
                 (submission) => submission.id === thread.submission_version_id,
@@ -55,7 +55,7 @@ export function MilestoneFeedback({
           {(reviewer || (author && thread.state !== 'RESOLVED_BY_REVIEWER')) && (
             <form key={thread.version} onSubmit={(event) => respond(event, thread)}>
               <label>
-                Feedback action
+                Milestone feedback action
                 <select name="action">
                   {thread.state !== 'RESOLVED_BY_REVIEWER' && (
                     <option value="RESPOND">Respond</option>
@@ -70,11 +70,11 @@ export function MilestoneFeedback({
                 </select>
               </label>
               <label>
-                Feedback response
+                Milestone feedback response
                 <textarea name="body" required maxLength={2000} rows={3} />
               </label>
               <button disabled={busy} className="button secondary">
-                Save feedback response
+                Save milestone feedback response
               </button>
             </form>
           )}

@@ -110,7 +110,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
   }
   return (
     <>
-      <Link to={`/workspace/projects/${projectId}`}>← Back to project</Link>
+      <Link to={`/projects/${projectId}`}>← Back to project</Link>
       {error && (
         <p role="alert">
           {error}{' '}
@@ -176,20 +176,20 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                 <EvidenceList items={submission.evidence} name={name} />
                 {submission.feedback && (
                   <p>
-                    <strong>Reviewer decision:</strong> {submission.feedback}
+                    <strong>Milestone decision:</strong> {submission.feedback}
                   </p>
                 )}
                 {project.status === 'ACTIVE' && project.role === 'MAIN_REVIEWER' && (
                   <form onSubmit={(event) => feedback(event, submission.id)}>
                     <label>
-                      New feedback
+                      New milestone feedback
                       <textarea name="body" required maxLength={2000} rows={3} />
                     </label>
                     <label>
-                      <input name="blocking" type="checkbox" /> Blocking feedback
+                      <input name="blocking" type="checkbox" /> Blocking milestone feedback
                     </label>
                     <button disabled={busy} className="button secondary">
-                      Add feedback
+                      Add milestone feedback
                     </button>
                   </form>
                 )}
@@ -208,7 +208,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                     </select>
                   </label>
                   <label>
-                    Review explanation
+                    Milestone decision explanation
                     <textarea name="feedback" maxLength={2000} rows={3} />
                   </label>
                   <button disabled={busy} className="button primary">

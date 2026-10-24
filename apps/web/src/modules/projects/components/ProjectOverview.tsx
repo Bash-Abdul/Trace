@@ -26,7 +26,7 @@ export function ProjectOverview({ project }: { project: Project }) {
         <section className="section-spaced">
           <SectionHeading
             title="The path ahead"
-            to={`/projects/${project.id}?tab=milestones`}
+            to={`/demo/projects/${project.id}?tab=milestones`}
             label="All milestones"
           />
           <MilestoneList project={project} />
@@ -91,7 +91,10 @@ export function ProjectOverview({ project }: { project: Project }) {
             </CheckItem>
           ))}
           {project.state === 'completed' ? (
-            <Link className="button primary full-width" to={`/projects/${project.id}/portfolio`}>
+            <Link
+              className="button primary full-width"
+              to={`/demo/projects/${project.id}/portfolio`}
+            >
               View final portfolio
               <ArrowRight size={15} />
             </Link>

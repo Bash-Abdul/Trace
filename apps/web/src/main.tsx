@@ -1,8 +1,8 @@
 import { StrictMode, Component, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { App } from './app/App';
 import { DemoProvider } from './app/providers/DemoProvider';
+import { App } from './app/App';
 import '@fontsource/dm-sans/400.css';
 import '@fontsource/dm-sans/500.css';
 import '@fontsource/dm-sans/600.css';
@@ -22,7 +22,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
   render() {
     return this.state.failed ? (
       <main className="empty-state">
-        <h1>Something interrupted the demo.</h1>
+        <h1>Something interrupted your workspace.</h1>
         <p>Reload to return to your saved workspace.</p>
         <button className="button primary" onClick={() => window.location.reload()}>
           Reload workspace

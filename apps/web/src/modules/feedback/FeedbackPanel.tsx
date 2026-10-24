@@ -149,7 +149,7 @@ export function ReviewsPage() {
           {submissions.map(({ project, milestone }) => (
             <Link
               key={`${project.id}-${milestone.id}`}
-              to={`/projects/${project.id}/milestones/${milestone.id}`}
+              to={`/demo/projects/${project.id}/milestones/${milestone.id}`}
             >
               <div>
                 <strong>{milestone.title}</strong>
@@ -177,7 +177,7 @@ export function ReviewsPage() {
       </div>
       {threads.map(({ project, feedback }) => (
         <div className="review-thread-wrap" key={feedback.id}>
-          <Link className="eyebrow" to={`/projects/${project.id}?tab=feedback`}>
+          <Link className="eyebrow" to={`/demo/projects/${project.id}?tab=feedback`}>
             {project.title}
           </Link>
           <FeedbackThread project={project} feedback={feedback} />

@@ -1,108 +1,192 @@
-import { test, expect } from '@playwright/test';
-
-test('revision, immutable history, reviewer decision and feedback resolution', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.setViewportSize({ width: 1440, height: 1000 });
+import { test, expect, type Page } from '@playwright/test';
+const session = {
+  user: { id: 'author', email: 'author@example.com' },
+  sessionId: 'current',
+  csrfToken: 'test-csrf',
+};
+const projects = [
+  {
+    id: 'garden',
+    title: 'Community garden',
+    description: 'A real project brief.',
+    project_type: 'GROUP',
+    approval_route: 'IN_PLATFORM_PROPOSAL',
+    status: 'ACTIVE',
+    version: 2,
+    role: 'LEAD_AUTHOR',
+  },
+  {
+    id: 'library',
+    title: 'Accessible library',
+    description: 'Review this project.',
+    project_type: 'INDIVIDUAL',
+    approval_route: 'IN_PLATFORM_PROPOSAL',
+    status: 'PROPOSAL_IN_REVIEW',
+    version: 1,
+    role: 'MAIN_REVIEWER',
+  },
+];
+const queueItem = {
+  id: 'proposal-1',
+  kind: 'PROPOSAL',
+  project_id: 'library',
+  project_title: 'Accessible library',
+  role: 'MAIN_REVIEWER',
+  milestone_id: null,
+  milestone_title: null,
+  number: 1,
+  state: 'PROPOSAL_IN_REVIEW',
+  body: null,
+  blocking: false,
+  updated_at: '2026-10-23T12:00:00Z',
+  perspective: 'reviewer',
+  needs_attention: true,
+  action: 'Review submission',
+};
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/projects/reviews', (route) =>
+    route.fulfill({ json: { items: [queueItem], truncated: false } }),
+  );
+});
+async function authenticate(page: Page) {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ json: session }));
+}
+test('overview and project search use API records, not saved demo data', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) => route.fulfill({ json: { projects } }));
   await page.goto('/overview');
   await expect(page.getByRole('heading', { name: 'A little progress, every day.' })).toBeVisible();
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: '/tmp/trace-desktop.png', fullPage: true });
-  await page.goto('/projects/calmer-campus/milestones/research');
+  await expect(page.getByRole('heading', { name: 'Community garden' })).toBeVisible();
+  await expect(page.getByLabel('Demo perspective')).toHaveCount(0);
+  await expect(page.getByText('Live milestone threads')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Process portfolios', exact: true })).toBeVisible();
+  await page.screenshot({ path: '/tmp/trace-connected-desktop.png', fullPage: true });
+  await page.getByRole('navigation').getByRole('link', { name: 'My projects' }).click();
+  await page.getByLabel('Search project titles').fill('garden');
+  await expect(page.getByRole('heading', { name: 'Community garden' })).toBeVisible();
   await page
-    .getByLabel('Reflection & explanation')
-    .fill('The synthesis map connects interview themes to three design opportunities.');
-  await page.getByRole('button', { name: 'Save revised draft' }).click();
-  await page.getByRole('button', { name: 'Submit for review' }).click();
-  await expect(page.getByLabel('Reflection & explanation')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Version history' }).click();
-  await expect(page.getByRole('heading', { name: 'Version 1', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Version 2', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Close dialog' }).click();
-  await page.getByLabel('Demo perspective').selectOption('reviewer');
-  await page.getByRole('button', { name: 'Approve milestone' }).click();
-  await expect(page.getByText('This version has been approved.')).toBeVisible();
-  await page.goto('/projects/calmer-campus?tab=feedback');
-  await page.getByLabel('Demo perspective').selectOption('author');
-  await page.getByLabel('Your response').fill('Added the synthesis map in version 2.');
-  await page.getByRole('button', { name: 'Mark addressed' }).click();
-  await expect(page.getByText('Addressed by Author', { exact: true })).toBeVisible();
-  await page.getByLabel('Demo perspective').selectOption('reviewer');
-  await page.getByRole('button', { name: 'Resolve feedback' }).click();
-  await expect(page.getByText('Resolved', { exact: true })).toBeVisible();
-  await page.reload();
-  await expect(page.getByText('Resolved', { exact: true })).toBeVisible();
-  await page.goto('/projects/calmer-campus/portfolio');
-  await expect(
-    page.getByRole('heading', { name: 'Designing a calmer campus', exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByText('The synthesis map connects interview themes to three design opportunities.', {
-      exact: true,
-    }),
-  ).toBeVisible();
-  expect(errors).toEqual([]);
-});
-
-test('create and activate an in-platform proposal', async ({ page }) => {
-  await page.goto('/projects/new');
-  await page.getByRole('button', { name: 'Continue with this template' }).click();
-  await page.getByLabel('Project title').fill('A more welcoming library');
-  await page
-    .getByLabel('A little about your project')
-    .fill('Explore quiet spaces and accessible wayfinding.');
-  await page.getByRole('button', { name: 'Create demo project' }).click();
-  await page.getByRole('button', { name: 'View team' }).click();
-  await page.getByRole('button', { name: 'Simulate invitation acceptance' }).click();
-  await page.getByRole('button', { name: 'Submit proposal', exact: true }).click();
-  await page.getByLabel('Demo perspective').selectOption('reviewer');
-  await page.getByRole('button', { name: 'Approve proposal' }).click();
-  await expect(page.getByText('In progress', { exact: true })).toBeVisible();
-  await page.getByRole('tab', { name: 'Overview', exact: true }).click();
-  await page.getByLabel('Demo perspective').selectOption('author');
-  await expect(page.getByRole('button', { name: 'Request final approval' })).toBeDisabled();
-});
-
-test('mobile navigation, search, and responsive detail pages', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/overview');
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: '/tmp/trace-mobile.png', fullPage: true });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('button', { name: 'Open navigation' }).click();
-  await page.getByRole('link', { name: 'My projects', exact: true }).click();
-  await page.getByLabel('Search project titles').fill('Urban');
-  await expect(page.getByRole('heading', { name: 'Urban green spaces & wellbeing' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Designing a calmer campus' })).toHaveCount(0);
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: 'Urban green spaces & wellbeing', exact: true })
+    .getByRole('navigation')
+    .getByRole('link', { name: /Review & feedback/ })
     .click();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole('tab', { name: 'Milestones', exact: true }).click();
-  await expect(page.getByRole('link', { name: /Literature review/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Review queue' }).getByRole('link')).toContainText(
+    'Accessible library',
+  );
+  await expect(
+    page.getByRole('region', { name: 'Review queue' }).getByRole('link'),
+  ).toHaveAttribute('href', '/projects/library?tab=overview');
 });
-
-test('landing page explains the product and opens the workspace on desktop and mobile', async ({
+test('failed loads can retry and empty accounts never display sample projects', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Good work has/ })).toBeVisible();
-  await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: '/tmp/trace-landing-desktop.png', fullPage: true });
-  await page.getByRole('link', { name: 'Step inside Trace' }).click();
-  await expect(page).toHaveURL(/\/overview$/);
-  await expect(page.getByRole('heading', { name: 'A little progress, every day.' })).toBeVisible();
+  await authenticate(page);
+  let failed = true;
+  await page.route('**/api/v1/projects', (route) =>
+    failed ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: { projects: [] } }),
+  );
+  await page.goto('/projects');
+  await expect(page.getByRole('alert')).toContainText('Please try again');
+  failed = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'A little room for something new' }),
+  ).toBeVisible();
+  await expect(page.locator('.project-card')).toHaveCount(0);
+});
+test('mobile navigation and legacy URLs lead to the connected workspace', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) => route.fulfill({ json: { projects } }));
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
-  await page.evaluate(() => document.fonts.ready);
+  await page.goto('/workspace');
+  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page.getByRole('heading', { name: 'Community garden' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
+  await page.getByRole('navigation').getByRole('link', { name: 'Overview', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'A little progress, every day.' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: '/tmp/trace-landing-mobile.png', fullPage: true });
-  await page.getByRole('link', { name: 'See how it works' }).click();
-  await expect(page).toHaveURL(/#how-it-works$/);
-  await page.getByRole('link', { name: 'Explore a sample portfolio' }).click();
+  await expect
+    .poll(() => page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().right))
+    .toBeLessThanOrEqual(0);
+  await page.screenshot({ path: '/tmp/trace-connected-mobile.png', fullPage: true });
+  await page.goto('/workspace/projects/missing?tab=team');
+  await expect(page).toHaveURL(/\/projects\/missing\?tab=team$/);
+});
+test('protected workspace redirects on missing or expired sessions', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) =>
+    route.fulfill({ status: 401, json: { error: { message: 'Sign in' } } }),
+  );
+  await page.goto('/overview');
+  await expect(page).toHaveURL(/\/login$/);
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ status: 401, json: { error: { message: 'Session expired' } } }),
+  );
+  await page.goto('/projects');
+  await expect(page).toHaveURL(/\/login$/);
+});
+test('landing page opens sign-in instead of a fictional workspace', async ({ page }) => {
+  await page.route('**/api/v1/auth/session', (route) => route.fulfill({ status: 401, json: {} }));
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Step inside Trace' }).click();
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test('Reviewer accounts open a distinct review desk and retain demo previews', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ json: { projects: [projects[1]] } }),
+  );
+  await page.goto('/overview');
+  await expect(page.getByText('YOUR REVIEW DESK', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'A fresh perspective makes a difference.' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Workspace perspective')).toHaveText('Reviewer view');
+  await expect(page.getByRole('combobox', { name: 'Workspace perspective' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open review queue', exact: true })).toBeVisible();
+  await expect(page.getByText('Let’s keep your projects moving.', { exact: false })).toHaveCount(0);
+  await page.screenshot({ path: '/tmp/trace-reviewer-desktop.png', fullPage: true });
+  await page.getByRole('link', { name: 'Process portfolios', exact: true }).click();
+  await expect(page.getByText('Demo preview', { exact: true }).last()).toBeVisible();
+  await page.getByRole('link', { name: /Designing a calmer campus/ }).click();
+  await expect(page).toHaveURL(/\/demo\/projects\/calmer-campus\/portfolio$/);
   await expect(
     page.getByRole('heading', { name: 'Designing a calmer campus', exact: true }),
   ).toBeVisible();
+});
+
+test('review queue filters waiting work and refreshes after a decision', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) => route.fulfill({ json: { projects } }));
+  let items = [
+    queueItem,
+    {
+      ...queueItem,
+      id: 'thread-1',
+      kind: 'MILESTONE_FEEDBACK',
+      milestone_id: 'research',
+      milestone_title: 'Research',
+      needs_attention: false,
+      state: 'OPEN',
+      action: 'Awaiting author response',
+      body: 'Explain the sample',
+    },
+  ];
+  await page.route('**/api/v1/projects/reviews', (route) =>
+    route.fulfill({ json: { items, truncated: false } }),
+  );
+  await page.goto('/reviews');
+  const links = page.getByRole('region', { name: 'Review queue' }).getByRole('link');
+  await expect(links).toHaveCount(1);
+  await page.getByRole('button', { name: 'All ongoing work', exact: true }).click();
+  await expect(links).toHaveCount(2);
+  await page.screenshot({ path: '/tmp/trace-review-queue-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/tmp/trace-review-queue-mobile.png', fullPage: true });
+  await page.getByLabel('Review type').selectOption('MILESTONE_FEEDBACK');
+  await expect(links).toHaveCount(1);
+  await expect(links).toContainText('Explain the sample');
+  items = [];
+  await page.getByRole('button', { name: 'Refresh reviews' }).click();
+  await expect(page.getByRole('heading', { name: 'No ongoing work in this view' })).toBeVisible();
 });

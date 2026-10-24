@@ -93,21 +93,25 @@ export async function createProject(
   input: CreateProject,
 ): Promise<ProjectDetailResponse> {
   const template = templates.find((template) => template.key === input.templateKey);
-  if (!template) {
+  if (!template && input.templateKey !== 'custom') {
     throw badRequest('Unknown project template', 'VALIDATION_ERROR');
   }
-  const id = await repository.insertProject(client, userId, input, template.version);
+  const id = await repository.insertProject(client, userId, input, template?.version ?? 1);
   await repository.addMember(client, id, userId, input.creatorRole);
   await repository.saveStructure(client, id, {
     ...input,
-    milestones: template.milestones.map((title) => ({ id: randomUUID(), title, required: true })),
-    deliverables: [{ id: randomUUID(), title: 'Final outcome & reflection', required: true }],
+    milestones: (
+      input.milestones ?? template!.milestones.map((title) => ({ title, required: true }))
+    ).map((item) => ({ ...item, id: randomUUID() })),
+    deliverables: (
+      input.deliverables ?? [{ title: 'Final outcome & reflection', required: true }]
+    ).map((item) => ({ ...item, id: randomUUID() })),
   });
   await repository.event(client, id, userId, 'PROJECT_CREATED', {
     projectType: input.projectType,
     approvalRoute: input.approvalRoute,
-    template: template.key,
-    templateVersion: template.version,
+    template: input.templateKey,
+    templateVersion: template?.version ?? 1,
   });
 
   return getProject(client, id, userId);

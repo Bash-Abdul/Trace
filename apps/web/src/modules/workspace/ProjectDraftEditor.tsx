@@ -1,4 +1,5 @@
-import { type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
+import { StructureEditor, structurePayload, type StructureItem } from './StructureEditor';
 import type { ProjectDetail } from './workspace-api';
 export function ProjectDraftEditor({
   project,
@@ -11,6 +12,12 @@ export function ProjectDraftEditor({
   save: (body: unknown) => Promise<void>;
   cancel: () => void;
 }) {
+  const [milestones, setMilestones] = useState<StructureItem[]>(() =>
+    project.milestones.map((item) => ({ ...item, key: item.id })),
+  );
+  const [deliverables, setDeliverables] = useState<StructureItem[]>(() =>
+    project.deliverables.map((item) => ({ ...item, key: item.id })),
+  );
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -24,8 +31,8 @@ export function ProjectDraftEditor({
       title: data.get('title'),
       description: data.get('description'),
       objectives: lines('objectives'),
-      milestones: lines('milestones').map((title) => ({ title, required: true })),
-      deliverables: lines('deliverables').map((title) => ({ title, required: true })),
+      milestones: structurePayload(milestones),
+      deliverables: structurePayload(deliverables),
     });
   }
   return (
@@ -55,29 +62,23 @@ export function ProjectDraftEditor({
           rows={3}
         />
       </label>
-      <label>
-        Milestones — one per line
-        <textarea
-          name="milestones"
-          defaultValue={project.milestones.map((m) => m.title).join('\n')}
-          required
-          maxLength={3600}
-          rows={5}
-        />
-      </label>
-      <label>
-        Deliverables — one per line
-        <textarea
-          name="deliverables"
-          defaultValue={project.deliverables.map((m) => m.title).join('\n')}
-          required
-          maxLength={2400}
-          rows={3}
-        />
-      </label>
+      <StructureEditor
+        label="Milestone"
+        items={milestones}
+        onChange={setMilestones}
+        max={30}
+        disabled={busy}
+      />
+      <StructureEditor
+        label="Deliverable"
+        items={deliverables}
+        onChange={setDeliverables}
+        max={20}
+        disabled={busy}
+      />
       <p className="muted">
-        Milestones and deliverables entered here are required. Submitted proposal versions keep
-        their original content.
+        Reordering or renaming keeps existing milestone identities. Submitted proposal versions keep
+        their original structure.
       </p>
       <div className="form-actions">
         <button disabled={busy} type="button" className="button secondary" onClick={cancel}>

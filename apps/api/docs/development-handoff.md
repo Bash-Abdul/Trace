@@ -2,6 +2,84 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## UI reference and push checkpoint — October 24, 2026
+
+User reiterated that the original demo presentation must remain the visual reference.
+Integrate API data into its existing components; do not simplify or redesign screens
+as a side effect of wiring endpoints. The original complete demo is preserved at
+commit `1964b86`. Current `/demo/projects` and `/demo/reviews` retain sample pages,
+but share the modified live shell and are not the full original workspace.
+
+Pre-push `pnpm audit --audit-level=high` reported two high advisories: Zod
+GHSA-mrhx-c7xc-m3w5 (patched >=4.6.6) and body-parser GHSA-27r3-jxmh-p828
+(patched >=2.4.0), plus four moderate advisories. Dependency fixes and revalidation
+remain outstanding; the CI audit gate may fail for this checkpoint.
+
+## Live review queue — October 24, 2026
+
+`/reviews` now consolidates real proposal reviews, milestone submissions and unresolved
+milestone feedback. The sidebar attention count and overview review/feedback cards use
+the same queue. Authors see revision/response work; Main Reviewers see pending decisions
+and addressed threads. Existing layout and labelled unfinished demos are preserved;
+the original sample review page is available at `/demo/reviews`.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 58 database integration and
+7 web unit tests, plus builds). All 11 controlled browser tests and both real API
+browser flows passed; desktop/mobile queue screenshots were inspected. Final web
+typecheck/lint and repository formatting checks passed after the UI follow-ups.
+
+See [reviews.md](./reviews.md) for role rules, result limits and refresh behaviour.
+No migration is required. The queue is current work, not a read/unread notification
+inbox. App-wide notifications (#4) are the next increment; invitation emails (#3)
+and automatic email-worker operation (#1) remain separate follow-ups.
+
+## Editable starting structure and feedback clarity — October 23, 2026
+
+Project creation accepts optional milestone/deliverable overrides on existing presets,
+or `templateKey: custom` with both collections required. The frontend supports
+editing/reordering required or optional rows before creation; the draft editor now
+sends explicit IDs and preserves flags. This customises one project's starting plan,
+not the shared preset or a reusable template library. Existing API defaults remain
+compatible, source provenance is retained, and no migration is required.
+
+Top-nav Author/Reviewer dropdown is replaced by a fixed label. Proposal feedback,
+milestone feedback threads and milestone decision explanations are named explicitly.
+Blocking feedback still does not gate milestone approval; final-approval eligibility
+remains future work. See projects.md and milestones.md for workflow boundaries.
+
+`pnpm verify` passed: 54 API unit/HTTP, 54 database integration and 7 web tests;
+ten controlled browser checks passed. Live-browser verification includes custom
+creation, ordering and optional flags alongside the proposal/milestone review flow.
+
+## Connected workspace — October 23, 2026
+
+On branch `test`, the former sample sidebar/card layout is connected to real APIs.
+`/overview`, `/projects`, creation/details, `/reviews` and milestone pages require
+sign-in. Existing `/workspace` links redirect to the corresponding routes. The
+existing live project/milestone components are reused inside the styled shell;
+project permissions and all backend contracts remain unchanged. No migration.
+
+UI constraint: preserve the original demo layout and retain unfinished features as
+labelled, usable demos. The original sidebar, four-card overview, illustration,
+activity/upcoming panels and portfolio preview are restored. DemoProvider remains
+mounted for isolated `/demo/projects/...` workflows, portfolio/activity/settings and
+sample feedback. Never use sample records as live API records.
+
+Reviewer-only accounts default to a distinct review desk. The top bar now displays
+a fixed Author/Reviewer label; mixed-role accounts reach reviews via the sidebar,
+and project routes derive presentation from actual membership. Project tabs are restored, with evidence/feedback
+linking to their live milestone workflows. Live counts cover at most 100 projects;
+remaining sample overview numbers and due dates are labelled Demo preview.
+
+Verification passed: seven web unit tests, ten controlled browser tests and both
+real API browser flows, including the restored project tabs. Web lint/typecheck/build
+and final formatting checks also passed after UI follow-ups. Changes are local and
+uncommitted on `test`.
+
+Follow-ups: invitation emails and status feedback (#3), app-wide notifications/toasts
+(#4), evidence coverage/mappings and final deliverable approval. File/image uploads
+remain deferred in #2. Automatic email worker operation remains #1.
+
 ## Milestone evidence checkpoint — October 22, 2026
 
 Text/link evidence is connected to the live workspace. Open an active project,

@@ -12,16 +12,33 @@ import {
 import { Link } from 'react-router-dom';
 import { useDemo } from '../../app/providers/DemoProvider';
 import { Avatar, formatDate, SectionHeading } from '../../shared/ui/Primitives';
-import { ProjectCard } from '../projects/components/ProjectCard';
+import { useWorkspaceView } from '../../app/providers/WorkspaceViewProvider';
+import { useAuth } from '../auth/AuthProvider';
+import { LiveProjectCard } from '../projects/components/LiveProjectCard';
+import { reviewDestination } from '../reviews/reviews-api';
+import { ProjectListState } from '../projects/components/ProjectListState';
 
 export function DashboardPage() {
-  const { projects, persona } = useDemo();
-  const milestones = projects.flatMap((p) => p.milestones.map((m) => ({ ...m, project: p })));
-  const reviewCount = milestones.filter((m) => m.status === 'awaiting-review').length;
-  const feedbackCount = projects.reduce(
-    (sum, p) => sum + p.feedback.filter((f) => f.status === 'open').length,
-    0,
+  const { projects } = useDemo();
+  const { projects: liveProjects, error, retry, persona, queue } = useWorkspaceView();
+  const { session } = useAuth();
+  const realProjects = (liveProjects ?? []).filter((p) =>
+    persona === 'reviewer'
+      ? ['MAIN_REVIEWER', 'DORMANT_REVIEWER'].includes(p.role)
+      : ['LEAD_AUTHOR', 'AUTHOR'].includes(p.role),
   );
+  const focusItem = queue.data?.items.find(
+    (item) => item.perspective === persona && item.needs_attention,
+  );
+  const awaitingReview = queue.data?.items.filter(
+    (item) =>
+      item.perspective === persona &&
+      ['PROPOSAL_IN_REVIEW', 'AWAITING_REVIEW'].includes(item.state),
+  ).length;
+  const milestones = projects.flatMap((p) => p.milestones.map((m) => ({ ...m, project: p })));
+  const feedbackCount = queue.data?.items.filter(
+    (item) => item.perspective === persona && item.kind === 'MILESTONE_FEEDBACK',
+  ).length;
   const approved = milestones.filter((m) => m.status === 'approved').length;
   const next = milestones
     .filter((m) => m.status !== 'approved')
@@ -31,60 +48,73 @@ export function DashboardPage() {
     .flatMap((p) => p.activity.map((a) => ({ ...a, project: p })))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 3);
-  const focusProject =
-    persona === 'author'
-      ? projects.find((p) => p.feedback.some((f) => f.status === 'open'))
-      : projects.find(
-          (p) =>
-            p.milestones.some((m) => m.status === 'awaiting-review') ||
-            p.state === 'proposal-review',
-        );
+  if (!liveProjects) return <ProjectListState error={error} retry={retry} />;
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow greeting">YOUR WORK, IN PERSPECTIVE</p>
+          <p className="eyebrow greeting">
+            {persona === 'reviewer' ? 'YOUR REVIEW DESK' : 'YOUR WORK, IN PERSPECTIVE'}
+          </p>
           <h1>
-            A little progress, every day<span className="heading-dot">.</span>
+            {persona === 'reviewer'
+              ? 'A fresh perspective makes a difference'
+              : 'A little progress, every day'}
+            <span className="heading-dot">.</span>
           </h1>
           <p>
-            Welcome back, {persona === 'author' ? 'Bashir' : 'Maya'}. Let’s keep your projects
-            moving.
+            {persona === 'reviewer'
+              ? `Welcome back, ${session?.user.email}. Review submitted work, share feedback and follow up on revisions.`
+              : `Welcome back, ${session?.user.email}. Let’s keep your projects moving.`}
           </p>
         </div>
-        <Link className="button primary" to="/projects/new">
-          <Plus size={17} />
-          New project
+        <Link className="button primary" to={persona === 'reviewer' ? '/reviews' : '/projects/new'}>
+          {persona === 'reviewer' ? <FileCheck2 size={17} /> : <Plus size={17} />}
+          {persona === 'reviewer' ? 'Open review queue' : 'New project'}
         </Link>
       </div>
       <div className="stat-grid">
         {[
           {
             icon: FolderKanban,
-            label: 'Active projects',
-            number: projects.filter((p) => p.state === 'active').length,
-            note: 'Ideas taking shape',
+            label: persona === 'reviewer' ? 'Assigned projects' : 'Active projects',
+            number: liveProjects
+              ? persona === 'reviewer'
+                ? realProjects.length
+                : realProjects.filter((p) => p.status === 'ACTIVE').length
+              : '—',
+            note: 'Live projects',
             color: 'sage',
           },
           {
             icon: Clock3,
             label: 'Awaiting review',
-            number: reviewCount + projects.filter((p) => p.state === 'proposal-review').length,
-            note: persona === 'author' ? 'With your reviewer' : 'Ready for your feedback',
+            number: awaitingReview ?? '—',
+            note: queue.error
+              ? 'Refresh needed'
+              : queue.data?.truncated
+                ? 'Recent queue items only'
+                : persona === 'author'
+                  ? 'With your reviewer'
+                  : 'Ready for your feedback',
             color: 'peach',
           },
           {
             icon: MessageSquare,
-            label: 'Open feedback',
-            number: feedbackCount,
-            note: 'A conversation to continue',
+            label: 'Unresolved milestone feedback',
+            number: feedbackCount ?? '—',
+            note: queue.error
+              ? 'Refresh needed'
+              : queue.data?.truncated
+                ? 'Recent queue items only'
+                : 'Live milestone threads',
             color: 'blue',
           },
           {
             icon: CheckCheck,
             label: 'Milestones approved',
             number: approved,
-            note: 'Small wins, real progress',
+            note: 'Demo preview · sample milestones',
             color: 'lilac',
           },
         ].map(({ icon: Icon, label, number, note, color }) => (
@@ -105,34 +135,33 @@ export function DashboardPage() {
           <section className="focus-banner">
             <div className="focus-copy">
               <span className="focus-eyebrow">
-                <CircleDot size={13} />A GOOD PLACE TO PICK UP
+                <CircleDot size={13} />
+                {persona === 'reviewer' ? 'READY FOR YOUR PERSPECTIVE' : 'A GOOD PLACE TO PICK UP'}
               </span>
               <h2>
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Turn feedback into your next step.'
-                    : 'A fresh perspective makes a difference.'
-                  : 'Make space for your next idea.'}
+                {persona === 'reviewer'
+                  ? focusItem
+                    ? 'Submitted work needs your perspective.'
+                    : 'Make room for thoughtful feedback.'
+                  : focusItem
+                    ? 'A revision or response needs your attention.'
+                    : 'Your next step starts here.'}
               </h2>
               <p>
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Your reviewer has shared a few thoughts. A small revision can move the whole project forward.'
-                    : 'There’s new work ready for your attention. Help your Author see where to go next.'
-                  : 'Start a project and give your process a place to grow.'}
+                {persona === 'reviewer'
+                  ? 'Open your assigned projects to assess submissions, explain decisions and follow up on revised work.'
+                  : 'Open a project to develop your evidence and respond to your Reviewer’s feedback.'}
               </p>
               <Link
                 to={
-                  focusProject
-                    ? `/projects/${focusProject.id}${persona === 'author' ? '?tab=feedback' : ''}`
-                    : '/projects/new'
+                  focusItem
+                    ? reviewDestination(focusItem)
+                    : persona === 'reviewer'
+                      ? '/reviews'
+                      : '/projects'
                 }
               >
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Continue the conversation'
-                    : 'Open project for review'
-                  : 'Create a project'}
+                {persona === 'reviewer' ? 'Review assigned work' : 'Continue your projects'}
                 <ArrowRight size={16} />
               </Link>
             </div>
@@ -154,31 +183,44 @@ export function DashboardPage() {
             </div>
           </section>
           <section className="section-spaced">
-            <SectionHeading title="Your projects" count={projects.length} to="/projects" />
-            <div className="project-grid">
-              {projects.slice(0, 2).map((p) => (
-                <ProjectCard key={p.id} project={p} />
-              ))}
-            </div>
-            {projects.length > 2 && (
-              <Link className="project-mini" to={`/projects/${projects[2]!.id}`}>
-                <span className={`project-dot ${projects[2]!.color}`} />
-                <strong>{projects[2]!.title}</strong>
-                <span>
-                  {projects[2]!.state === 'proposal-review'
-                    ? 'Proposal awaiting review'
-                    : projects[2]!.category}
-                </span>
-                <ArrowUpRight size={17} />
-              </Link>
+            <SectionHeading
+              title={persona === 'reviewer' ? 'Assigned projects' : 'Your projects'}
+              count={realProjects.length}
+              to="/projects"
+            />
+            {!liveProjects || error ? (
+              <ProjectListState error={error} retry={retry} />
+            ) : (
+              <>
+                <div className="project-grid">
+                  {realProjects.slice(0, 2).map((project) => (
+                    <LiveProjectCard key={project.id} project={project} />
+                  ))}
+                </div>
+                {!realProjects.length && (
+                  <p>
+                    {persona === 'reviewer'
+                      ? 'No projects assigned yet. Accept a Reviewer invitation to get started.'
+                      : 'No authored projects yet. Create a project to begin.'}
+                  </p>
+                )}
+                {realProjects.length > 2 && (
+                  <Link className="project-mini" to={`/projects/${realProjects[2]!.id}`}>
+                    <span className="project-dot sage" />
+                    <strong>{realProjects[2]!.title}</strong>
+                    <ArrowUpRight size={17} />
+                  </Link>
+                )}
+                {liveProjects.length >= 100 && <p>Showing up to 100 recently updated projects.</p>}
+              </>
             )}
           </section>
           <section className="section-spaced">
-            <SectionHeading title="Latest activity" to="/activity" />
+            <SectionHeading title="Latest activity · Demo preview" to="/activity" />
             <div className="activity-card">
               {activity.map((item) => (
                 <Link
-                  to={`/projects/${item.project.id}?tab=activity`}
+                  to={`/demo/projects/${item.project.id}?tab=activity`}
                   className="activity-row"
                   key={`${item.project.id}-${item.id}`}
                 >
@@ -199,13 +241,13 @@ export function DashboardPage() {
         </div>
         <aside className="dashboard-aside">
           <section className="panel upcoming-panel">
-            <SectionHeading title="Coming up" />
-            <p className="panel-subtitle">A little focus for the days ahead.</p>
+            <SectionHeading title="Coming up · Demo preview" />
+            <p className="panel-subtitle">Sample schedule; live due dates are not connected yet.</p>
             {next.map((item) => (
               <Link
                 className="upcoming-item"
                 key={`${item.project.id}-${item.id}`}
-                to={`/projects/${item.project.id}/milestones/${item.id}`}
+                to={`/demo/projects/${item.project.id}/milestones/${item.id}`}
               >
                 <div className="date-tile">
                   <strong>{new Date(item.due).getDate()}</strong>
@@ -254,18 +296,19 @@ export function DashboardPage() {
                 <CheckCheck size={22} />
               </span>
             </div>
-            <span className="eyebrow">BUILT ALONG THE WAY</span>
+            <span className="eyebrow">PORTFOLIO · DEMO PREVIEW</span>
             <h2>
-              Your process.
+              {persona === 'reviewer' ? 'Their process.' : 'Your process.'}
               <br />
-              Your story.
+              {persona === 'reviewer' ? 'Your perspective.' : 'Your story.'}
             </h2>
             <p>
-              Your evidence, decisions, and reflections come together in a portfolio that grows with
-              you.
+              {persona === 'reviewer'
+                ? 'Explore how an Author’s evidence, revisions and your review decisions come together in a process portfolio.'
+                : 'Your evidence, decisions, and reflections come together in a portfolio that grows with you.'}
             </p>
             <Link to="/portfolio" className="text-link">
-              Preview your portfolio
+              {persona === 'reviewer' ? 'Explore a sample portfolio' : 'Preview your portfolio'}
               <ArrowUpRight size={15} />
             </Link>
           </section>

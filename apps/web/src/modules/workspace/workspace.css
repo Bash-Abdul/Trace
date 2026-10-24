@@ -37,7 +37,7 @@
   margin: auto;
   padding: 48px 32px;
 }
-.live-content .page-heading h1 {
+:is(.live-content, .connected-workspace .main-content) .page-heading h1 {
   overflow-wrap: anywhere;
 }
 .live-project-grid,
@@ -78,21 +78,21 @@
   margin: 20px auto;
   max-width: 520px;
 }
-.live-content .form-panel {
+:is(.live-content, .connected-workspace .main-content) .form-panel {
   gap: 20px;
   min-width: 0;
 }
-.live-content .form-panel h2,
-.live-content .form-panel h3 {
+:is(.live-content, .connected-workspace .main-content) .form-panel h2,
+:is(.live-content, .connected-workspace .main-content) .form-panel h3 {
   margin: 0;
 }
-.live-content .form-panel ul,
-.live-content .form-panel ol {
+:is(.live-content, .connected-workspace .main-content) .form-panel ul,
+:is(.live-content, .connected-workspace .main-content) .form-panel ol {
   padding-left: 24px;
   line-height: 1.85;
 }
-.live-content .form-panel select,
-.live-content .form-panel input {
+:is(.live-content, .connected-workspace .main-content) .form-panel select,
+:is(.live-content, .connected-workspace .main-content) .form-panel input {
   max-width: 100%;
 }
 .live-inline-form {
@@ -122,7 +122,7 @@
   font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
-.live-content .team-row {
+:is(.live-content, .connected-workspace .main-content) .team-row {
   flex-wrap: wrap;
   overflow-wrap: anywhere;
 }

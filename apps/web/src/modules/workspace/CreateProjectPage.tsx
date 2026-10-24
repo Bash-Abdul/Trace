@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useProjectApi } from './use-project-api';
+import { StructureEditor, structurePayload, type StructureItem } from './StructureEditor';
 import { detailSchema, templatesSchema, projectMessage } from './workspace-api';
 
 export function CreateProjectPage() {
@@ -15,6 +16,17 @@ export function CreateProjectPage() {
   const [creatorRole, setCreatorRole] = useState('LEAD_AUTHOR');
   const [templateKey, setTemplateKey] = useState('design');
   const [attempt, setAttempt] = useState(0);
+  const [editedMilestones, setMilestones] = useState<StructureItem[] | null>(null);
+  const [deliverables, setDeliverables] = useState<StructureItem[]>([
+    { key: 'final', title: 'Final outcome & reflection', required: true },
+  ]);
+  const milestones =
+    editedMilestones ??
+    (templates.find((t) => t.key === templateKey)?.milestones ?? []).map((title, index) => ({
+      key: `${templateKey}-${index}`,
+      title,
+      required: true,
+    }));
   useEffect(() => {
     const controller = new AbortController();
     api('/templates', templatesSchema, { signal: controller.signal })
@@ -46,10 +58,12 @@ export function CreateProjectPage() {
           projectType,
           creatorRole,
           templateKey,
+          milestones: structurePayload(milestones),
+          deliverables: structurePayload(deliverables),
           approvalRoute: data.get('approvalRoute'),
         },
       });
-      navigate(`/workspace/projects/${project.id}`);
+      navigate(`/projects/${project.id}`);
     } catch (e) {
       setError(projectMessage(e));
     } finally {
@@ -58,7 +72,7 @@ export function CreateProjectPage() {
   }
   return (
     <>
-      <Link className="back-link" to="/workspace">
+      <Link className="back-link" to="/projects">
         ← Back to your projects
       </Link>
       <div className="page-heading">
@@ -113,7 +127,26 @@ export function CreateProjectPage() {
           </label>
           <label>
             Starting template
-            <select value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}>
+            <select
+              value={templateKey}
+              disabled={busy}
+              onChange={(e) => {
+                setTemplateKey(e.target.value);
+                setMilestones(
+                  e.target.value === 'custom'
+                    ? [{ key: crypto.randomUUID(), title: '', required: true }]
+                    : null,
+                );
+                setDeliverables([
+                  {
+                    key: crypto.randomUUID(),
+                    title: e.target.value === 'custom' ? '' : 'Final outcome & reflection',
+                    required: true,
+                  },
+                ]);
+              }}
+            >
+              <option value="custom">Custom structure — start from scratch</option>
               {templates.map((t) => (
                 <option key={t.key} value={t.key}>
                   {t.name}
@@ -121,6 +154,24 @@ export function CreateProjectPage() {
               ))}
             </select>
           </label>
+          <p className="muted">
+            Templates are starting points. Edit your copy below; switching templates resets the
+            milestone and deliverable fields.
+          </p>
+          <StructureEditor
+            label="Milestone"
+            items={milestones}
+            onChange={setMilestones}
+            max={30}
+            disabled={busy}
+          />
+          <StructureEditor
+            label="Deliverable"
+            items={deliverables}
+            onChange={setDeliverables}
+            max={20}
+            disabled={busy}
+          />
           <label>
             Project title
             <input name="title" required maxLength={120} />
@@ -153,23 +204,31 @@ export function CreateProjectPage() {
             Project type and approval route are fixed after creation. You can edit the brief before
             review.
           </p>
-          <button className="button primary" disabled={busy || !templates.length}>
+          <button className="button primary" disabled={busy || !milestones.length}>
             {busy ? 'Creating…' : 'Create project'}
           </button>
         </form>
         <aside className="panel template-preview">
           <p className="eyebrow">YOUR STARTING STRUCTURE</p>
-          <h2>{templates.find((t) => t.key === templateKey)?.name ?? 'Loading templates…'}</h2>
+          <h2>
+            {templateKey === 'custom'
+              ? 'Custom structure'
+              : (templates.find((t) => t.key === templateKey)?.name ?? 'Loading templates…')}
+          </h2>
           <ol>
-            {templates
-              .find((t) => t.key === templateKey)
-              ?.milestones.map((title, i) => (
-                <li key={title}>
-                  <span>{String(i + 1).padStart(2, '0')}</span>
-                  {title}
-                </li>
-              ))}
+            {milestones.map((item, index) => (
+              <li key={item.key}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                {item.title || 'Untitled milestone'}
+                {item.required ? '' : ' (optional)'}
+              </li>
+            ))}
           </ol>
+          <p>
+            Milestones are the stages where you submit evidence for review. Deliverables describe
+            the final outputs. The proposal approves this plan; it is separate from milestone
+            submissions.
+          </p>
           <div className="soft-note">
             Invite people after creation.{' '}
             {creatorRole === 'MAIN_REVIEWER'
