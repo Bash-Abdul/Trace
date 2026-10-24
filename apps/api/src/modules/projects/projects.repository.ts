@@ -7,6 +7,7 @@ import type {
   Decision,
   Role,
   MemberProject,
+  ProjectListItem,
   ProjectRecord,
   PendingInvitation,
   ProposalSnapshot,
@@ -16,6 +17,52 @@ import type {
   VerifiedAccount,
   SavedStructure,
 } from './projects.types.js';
+
+// Shared read projection for cards and detail. Correlated to the already authorised
+// project row, so summary data uses the same membership check and database snapshot.
+const progressSql = `jsonb_build_object(
+  'milestones', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', pm.id,
+      'required', pm.required,
+      'state', COALESCE(ms.state, 'NOT_STARTED'),
+      'evidence_count', (
+        SELECT count(*)
+        FROM milestone_draft_evidence e
+        WHERE e.milestone_id = pm.id
+      )
+    ) ORDER BY pm.position)
+    FROM project_milestones pm
+    LEFT JOIN milestone_submissions ms ON ms.milestone_id = pm.id
+    WHERE pm.project_id = p.id
+  ), '[]'::jsonb),
+  'unresolved_feedback', (
+    SELECT count(*)
+    FROM milestone_feedback f
+    JOIN milestone_submission_versions v ON v.id = f.submission_version_id
+    JOIN project_milestones pm ON pm.id = v.milestone_id
+    WHERE pm.project_id = p.id
+      AND f.state <> 'RESOLVED_BY_REVIEWER'
+  ),
+  'blocking_feedback', (
+    SELECT count(*)
+    FROM milestone_feedback f
+    JOIN milestone_submission_versions v ON v.id = f.submission_version_id
+    JOIN project_milestones pm ON pm.id = v.milestone_id
+    WHERE pm.project_id = p.id
+      AND f.blocking
+      AND f.state <> 'RESOLVED_BY_REVIEWER'
+  ),
+  'members', COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object('user_id', pm.user_id, 'email', u.email)
+      ORDER BY pm.joined_at, pm.user_id
+    )
+    FROM project_memberships pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.project_id = p.id
+  ), '[]'::jsonb)
+)`;
 
 export async function event(
   client: PoolClient,
@@ -136,9 +183,9 @@ async function saveItems(
   );
 }
 
-export async function listProjects(client: Database, userId: string): Promise<MemberProject[]> {
+export async function listProjects(client: Database, userId: string): Promise<ProjectListItem[]> {
   return (
-    await client.query<MemberProject>(
+    await client.query<ProjectListItem>(
       `SELECT
         p.id,
         p.created_by_user_id,
@@ -154,7 +201,8 @@ export async function listProjects(client: Database, userId: string): Promise<Me
         p.activated_version,
         p.created_at,
         p.updated_at,
-        m.role
+        m.role,
+        ${progressSql} AS progress
       FROM projects p
       JOIN project_memberships m ON m.project_id = p.id
       WHERE m.user_id = $1
@@ -605,6 +653,7 @@ export async function findProjectDetail(
       'created_at', p.created_at,
       'updated_at', p.updated_at,
       'role', m.role,
+      'progress', ${progressSql},
       'objectives', COALESCE((
         SELECT jsonb_agg(o.title ORDER BY o.position)
         FROM project_objectives o

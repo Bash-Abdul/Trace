@@ -78,7 +78,11 @@ export function EmptyState({
     </div>
   );
 }
-export function MilestoneProgress({ milestones }: { milestones: Milestone[] }) {
+export function MilestoneProgress({
+  milestones,
+}: {
+  milestones: Pick<Milestone, 'id' | 'status'>[];
+}) {
   const approved = milestones.filter((m) => m.status === 'approved').length;
   return (
     <div className="milestone-progress">

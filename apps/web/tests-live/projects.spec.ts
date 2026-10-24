@@ -86,9 +86,11 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await teammate.getByRole('button', { name: 'Save brief' }).click();
     await expect(teammate.getByRole('status')).toContainText('Project updated');
     await page.reload();
-    await expect(
-      page.getByText('A shared draft updated by the invited author.', { exact: true }),
-    ).toBeVisible();
+    await page.getByRole('tab', { name: 'Overview', exact: true }).click();
+    await expect(page.locator('.project-about')).toContainText(
+      'A shared draft updated by the invited author.',
+    );
+    await page.getByRole('tab', { name: 'Team', exact: true }).click();
     await page.getByLabel('Email address', { exact: true }).fill(emails[1]!);
     await page.getByLabel('Invite as').selectOption('MAIN_REVIEWER');
     await page.getByRole('button', { name: 'Create invitation link' }).click();
@@ -101,7 +103,9 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page.reload();
     await page.getByRole('tab', { name: 'Overview', exact: true }).click();
     await page.getByRole('button', { name: 'Submit proposal', exact: true }).click();
-    await expect(page.getByText(/GROUP PROJECT · Proposal in review/)).toBeVisible();
+    await expect(
+      page.locator('.project-heading-meta').getByText('Proposal in review', { exact: true }),
+    ).toBeVisible();
     await reviewer.reload();
     await reviewer
       .getByRole('combobox', { name: 'Decision', exact: true })
@@ -110,19 +114,27 @@ test('connected workspace: group invitations, proposal approval and milestone re
       .getByLabel('Proposal feedback', { exact: true })
       .fill('Make the title more precise.');
     await reviewer.getByRole('button', { name: 'Save decision' }).click();
-    await expect(reviewer.getByText(/GROUP PROJECT · Changes requested/)).toBeVisible();
+    await expect(
+      reviewer.locator('.project-heading-meta').getByText('Changes requested', { exact: true }),
+    ).toBeVisible();
     await page.reload();
     await page.getByRole('button', { name: 'Edit brief' }).click();
     await page.getByLabel('Project title').fill('An accessible neighbourhood garden');
     await page.getByRole('button', { name: 'Save brief' }).click();
     await expect(page.getByRole('status')).toContainText('Project updated');
     await page.getByRole('button', { name: 'Submit proposal' }).click();
-    await expect(page.getByText(/GROUP PROJECT · Proposal in review/)).toBeVisible();
+    await expect(
+      page.locator('.project-heading-meta').getByText('Proposal in review', { exact: true }),
+    ).toBeVisible();
     await reviewer.reload();
     await reviewer.getByRole('button', { name: 'Save decision' }).click();
-    await expect(reviewer.getByText(/GROUP PROJECT · Active/)).toBeVisible();
+    await expect(
+      reviewer.locator('.project-heading-meta').getByText('In progress', { exact: true }),
+    ).toBeVisible();
     await page.reload();
-    await expect(page.getByText(/GROUP PROJECT · Active/)).toBeVisible();
+    await expect(
+      page.locator('.project-heading-meta').getByText('In progress', { exact: true }),
+    ).toBeVisible();
     await page.screenshot({ path: '/tmp/trace-real-project-desktop.png', fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await expect
@@ -132,7 +144,7 @@ test('connected workspace: group invitations, proposal approval and milestone re
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await page.getByRole('link', { name: 'Project brief & proposal', exact: true }).click();
+    await page.getByRole('link', { name: /MILESTONE 01.*Project brief & proposal/ }).click();
     const milestoneUrl = page.url();
     await teammate.goto(milestoneUrl);
     await teammate.getByRole('button', { name: 'Add evidence', exact: true }).click();
@@ -235,7 +247,9 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page.getByLabel('About your project').fill('An independently authored project.');
     await page.getByLabel('Objectives', { exact: true }).fill('Produce an individual outcome');
     await page.getByRole('button', { name: 'Create project', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Optional pilot', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: /MILESTONE 01 · OPTIONAL.*Optional pilot/ }),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Edit brief', exact: true }).click();
     await expect(page.getByLabel('Milestone 1 title', { exact: true })).toHaveValue(
       'Optional pilot',

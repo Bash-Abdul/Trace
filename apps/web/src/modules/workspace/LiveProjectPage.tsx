@@ -1,3 +1,9 @@
+import { ArrowLeft, ArrowUpRight, CalendarDays } from 'lucide-react';
+import { Badge } from '../../shared/ui/Primitives';
+import { LiveProjectOverview } from '../projects/components/LiveProjectOverview';
+import { LiveMilestoneList } from '../projects/components/LiveMilestoneList';
+import { projectPresentation } from '../projects/components/live-project-presentation';
+import { roleLabels } from './workspace-api';
 import { ProjectNotifications } from '../milestones/ProjectNotifications';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
@@ -85,23 +91,99 @@ function ProjectContent({ id }: { id: string }) {
   return (
     <>
       <Link className="back-link" to="/projects">
-        ← Your projects
+        <ArrowLeft size={15} /> All projects
       </Link>
-      <div className="page-heading">
+      <div className="page-heading project-page-heading">
         <div>
           <p className="eyebrow">
-            {project.project_type === 'GROUP' ? 'GROUP PROJECT' : 'INDIVIDUAL PROJECT'} ·{' '}
-            {statusLabels[project.status]}
+            {project.project_type === 'GROUP' ? 'Group project' : 'Individual project'}
+            <span className="eyebrow-separator">/</span>
+            {projectPresentation(project).label}
           </p>
           <h1>{project.title}</h1>
-          <p>{project.description}</p>
+          <div className="project-heading-meta">
+            <Badge tone={project.status === 'ACTIVE' ? 'green' : 'amber'}>
+              {project.status === 'ACTIVE' ? 'In progress' : statusLabels[project.status]}
+            </Badge>
+            <span>
+              <CalendarDays size={15} />
+              No due date
+            </span>
+            <span>
+              Your role:{' '}
+              {project.project_type === 'INDIVIDUAL' && project.role === 'LEAD_AUTHOR'
+                ? 'Author'
+                : roleLabels[project.role]}
+            </span>
+          </div>
         </div>
-        {editable && !editing && (
-          <button className="button secondary" onClick={() => setEditing(true)}>
-            Edit brief
-          </button>
-        )}
+        <div className="inline-actions">
+          {editable && !editing && (
+            <button className="button secondary" onClick={() => setEditing(true)}>
+              Edit brief
+            </button>
+          )}
+          <Link
+            className="button secondary"
+            to={`/projects/${id}/portfolio`}
+            title="Demo portfolio preview"
+          >
+            Process portfolio <ArrowUpRight size={16} />
+          </Link>
+        </div>
       </div>
+      {(editable ||
+        ['SETUP', 'PROPOSAL_REJECTED', 'PROPOSAL_IN_REVIEW'].includes(project.status)) && (
+        <div className="workflow-banner">
+          <div>
+            <strong>
+              {project.status === 'PROPOSAL_CHANGES_REQUESTED'
+                ? 'A little refinement before you begin.'
+                : 'A shared starting point.'}
+            </strong>
+            {editable &&
+              project.role === 'LEAD_AUTHOR' &&
+              project.approval_route === 'IN_PLATFORM_PROPOSAL' && (
+                <>
+                  <p>
+                    {project.members.some((m) => m.role === 'MAIN_REVIEWER')
+                      ? 'Your starting structure is ready to submit for review.'
+                      : 'Your main Reviewer must join before you can submit this brief.'}
+                  </p>
+                  <button
+                    disabled={busy || !project.members.some((m) => m.role === 'MAIN_REVIEWER')}
+                    className="button primary"
+                    onClick={() =>
+                      void run(() =>
+                        api(`/${id}/proposals`, detailSchema, {
+                          method: 'POST',
+                          body: { version: project.version },
+                        }),
+                      )
+                    }
+                  >
+                    Submit proposal
+                  </button>
+                </>
+              )}
+            {project.approval_route === 'EXTERNALLY_APPROVED' && project.status === 'SETUP' && (
+              <p className="soft-note">
+                This project activates automatically when its Author or lead and main Reviewer have
+                joined.
+              </p>
+            )}
+            {project.status === 'PROPOSAL_REJECTED' && (
+              <p className="soft-note">
+                This proposal was rejected. A new project is required to start again.
+              </p>
+            )}
+
+            {project.status === 'PROPOSAL_IN_REVIEW' && (
+              <p>Your submitted proposal is awaiting the Main Reviewer’s decision.</p>
+            )}
+          </div>
+        </div>
+      )}
       <div className="project-tabs" role="tablist" aria-label="Project sections">
         {tabs.map((value, index) => (
           <button
@@ -133,6 +215,9 @@ function ProjectContent({ id }: { id: string }) {
             }}
           >
             {value === 'feedback' ? 'Milestone feedback' : value[0]!.toUpperCase() + value.slice(1)}
+            {value === 'feedback' && !!project.progress?.unresolved_feedback && (
+              <span className="count">{project.progress.unresolved_feedback}</span>
+            )}
           </button>
         ))}
       </div>
@@ -164,73 +249,92 @@ function ProjectContent({ id }: { id: string }) {
             }}
           />
         ) : tab === 'overview' ? (
-          <div>
-            <section className="panel form-panel">
-              <h2>The project brief</h2>
-              <h3>Objectives</h3>
-              <ul>
-                {project.objectives.map((o, i) => (
-                  <li key={i}>{o}</li>
-                ))}
-              </ul>
-              <h3>Milestones</h3>
-              <ol>
-                {project.milestones.map((m) => (
-                  <li key={m.id}>
-                    <Link to={`/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
-                    {m.required ? '' : ' (optional)'}
-                  </li>
-                ))}
-              </ol>
-              <h3>Deliverables</h3>
-              <ul>
-                {project.deliverables.map((d) => (
-                  <li key={d.id}>
-                    {d.title}
-                    {d.required ? '' : ' (optional)'}
-                  </li>
-                ))}
-              </ul>
-              {editable &&
-                project.role === 'LEAD_AUTHOR' &&
-                project.approval_route === 'IN_PLATFORM_PROPOSAL' && (
-                  <>
-                    <p>Your main Reviewer must join before you can submit this brief.</p>
-                    <button
-                      disabled={busy || !project.members.some((m) => m.role === 'MAIN_REVIEWER')}
-                      className="button primary"
-                      onClick={() =>
-                        void run(() =>
-                          api(`/${id}/proposals`, detailSchema, {
-                            method: 'POST',
-                            body: { version: project.version },
-                          }),
-                        )
-                      }
-                    >
-                      Submit proposal
+          <LiveProjectOverview project={project}>
+            <section className="panel form-panel live-section">
+              <h2>Proposal history & feedback</h2>
+              <p>
+                Proposal feedback concerns the project plan. Milestone feedback concerns evidence
+                submitted for an individual milestone.
+              </p>
+              {!project.proposals.length && <p>No proposals submitted yet.</p>}
+              {project.proposals.map((proposal) => (
+                <details
+                  key={proposal.id}
+                  open={
+                    project.role === 'MAIN_REVIEWER' &&
+                    project.status === 'PROPOSAL_IN_REVIEW' &&
+                    proposal.id === latest?.id
+                  }
+                >
+                  <summary>
+                    Version {proposal.version} ·{' '}
+                    {proposal.decision
+                      ? proposal.decision.replaceAll('_', ' ').toLowerCase()
+                      : 'Awaiting review'}
+                  </summary>
+                  <h3>{proposal.structure.title}</h3>
+                  <p>{proposal.structure.description}</p>
+                  <h4>Objectives</h4>
+                  <ul>
+                    {proposal.structure.objectives.map((o, i) => (
+                      <li key={i}>{o}</li>
+                    ))}
+                  </ul>
+                  <h4>Milestones</h4>
+                  <ol>
+                    {proposal.structure.milestones.map((m) => (
+                      <li key={m.id}>
+                        {m.title}
+                        {m.required ? ' (required)' : ' (optional)'}
+                      </li>
+                    ))}
+                  </ol>
+                  <h4>Deliverables</h4>
+                  <ul>
+                    {proposal.structure.deliverables.map((d) => (
+                      <li key={d.id}>
+                        {d.title}
+                        {d.required ? ' (required)' : ' (optional)'}
+                      </li>
+                    ))}
+                  </ul>
+                  {proposal.feedback && (
+                    <p>
+                      <strong>Proposal feedback:</strong> {proposal.feedback}
+                    </p>
+                  )}
+                </details>
+              ))}
+              {project.role === 'MAIN_REVIEWER' &&
+                project.status === 'PROPOSAL_IN_REVIEW' &&
+                latest && (
+                  <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
+                    <h3>Review this proposal</h3>
+                    <label>
+                      Decision
+                      <select name="decision">
+                        <option value="APPROVE">Approve</option>
+                        <option value="REQUEST_CHANGES">Request changes</option>
+                        <option value="REJECT">
+                          Reject — this closes the proposal permanently
+                        </option>
+                      </select>
+                    </label>
+                    <label>
+                      Proposal feedback
+                      <textarea name="feedback" maxLength={2000} rows={3} />
+                    </label>
+                    <p className="muted">
+                      Explain requested changes or rejection. Your decision applies to the submitted
+                      version shown above.
+                    </p>
+                    <button disabled={busy} className="button primary">
+                      Save decision
                     </button>
-                  </>
+                  </form>
                 )}
-              {project.approval_route === 'EXTERNALLY_APPROVED' && project.status === 'SETUP' && (
-                <p className="soft-note">
-                  This project activates automatically when its Author or lead and main Reviewer
-                  have joined.
-                </p>
-              )}
-              {project.status === 'ACTIVE' && (
-                <p className="soft-note">
-                  Your project is active. Open a milestone to add evidence, submit work or review
-                  it.
-                </p>
-              )}
-              {project.status === 'PROPOSAL_REJECTED' && (
-                <p className="soft-note">
-                  This proposal was rejected. A new project is required to start again.
-                </p>
-              )}
             </section>
-          </div>
+          </LiveProjectOverview>
         ) : null}
         {tab === 'team' && <ProjectTeamPanel project={project} api={api} run={run} busy={busy} />}
         {['milestones', 'evidence', 'feedback'].includes(tab) && (
@@ -247,91 +351,7 @@ function ProjectContent({ id }: { id: string }) {
                 ? 'Open a milestone to review submitted evidence, share feedback or decide on a revision.'
                 : 'Open a milestone to work on its evidence and continue the feedback conversation.'}
             </p>
-            <ol>
-              {project.milestones.map((m) => (
-                <li key={m.id}>
-                  <Link to={`/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
-                  {m.required ? ' · Required' : ' · Optional'}
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
-        {tab === 'overview' && (
-          <section className="panel form-panel live-section">
-            <h2>Proposal history & feedback</h2>
-            <p>
-              Proposal feedback concerns the project plan. Milestone feedback concerns evidence
-              submitted for an individual milestone.
-            </p>
-            {!project.proposals.length && <p>No proposals submitted yet.</p>}
-            {project.proposals.map((proposal) => (
-              <details key={proposal.id} open={proposal.id === latest?.id}>
-                <summary>
-                  Version {proposal.version} ·{' '}
-                  {proposal.decision
-                    ? proposal.decision.replaceAll('_', ' ').toLowerCase()
-                    : 'Awaiting review'}
-                </summary>
-                <h3>{proposal.structure.title}</h3>
-                <p>{proposal.structure.description}</p>
-                <h4>Objectives</h4>
-                <ul>
-                  {proposal.structure.objectives.map((o, i) => (
-                    <li key={i}>{o}</li>
-                  ))}
-                </ul>
-                <h4>Milestones</h4>
-                <ol>
-                  {proposal.structure.milestones.map((m) => (
-                    <li key={m.id}>
-                      {m.title}
-                      {m.required ? ' (required)' : ' (optional)'}
-                    </li>
-                  ))}
-                </ol>
-                <h4>Deliverables</h4>
-                <ul>
-                  {proposal.structure.deliverables.map((d) => (
-                    <li key={d.id}>
-                      {d.title}
-                      {d.required ? ' (required)' : ' (optional)'}
-                    </li>
-                  ))}
-                </ul>
-                {proposal.feedback && (
-                  <p>
-                    <strong>Proposal feedback:</strong> {proposal.feedback}
-                  </p>
-                )}
-              </details>
-            ))}
-            {project.role === 'MAIN_REVIEWER' &&
-              project.status === 'PROPOSAL_IN_REVIEW' &&
-              latest && (
-                <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
-                  <h3>Review this proposal</h3>
-                  <label>
-                    Decision
-                    <select name="decision">
-                      <option value="APPROVE">Approve</option>
-                      <option value="REQUEST_CHANGES">Request changes</option>
-                      <option value="REJECT">Reject — this closes the proposal permanently</option>
-                    </select>
-                  </label>
-                  <label>
-                    Proposal feedback
-                    <textarea name="feedback" maxLength={2000} rows={3} />
-                  </label>
-                  <p className="muted">
-                    Explain requested changes or rejection. Your decision applies to the submitted
-                    version shown above.
-                  </p>
-                  <button disabled={busy} className="button primary">
-                    Save decision
-                  </button>
-                </form>
-              )}
+            <LiveMilestoneList project={project} />
           </section>
         )}
         {tab === 'activity' && (

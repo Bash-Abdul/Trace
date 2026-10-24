@@ -2,6 +2,32 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Restore original project presentation — October 24, 2026
+
+The original demo at `1964b86` is the design reference. Project cards again use its
+coloured template icons, progress segments, member avatars and feedback strip.
+Project detail uses its heading metadata, numbered objectives, milestone rows and
+two-column overview with At a glance, Final deliverables and completion panels.
+The existing navigation was left unchanged. Proposal actions retain their existing
+permissions; history remains available below the milestone plan with older snapshots
+collapsed. Do not replace these layouts with generic form panels when wiring APIs.
+
+List/detail responses now include a read-only `progress` summary: current milestone
+states, draft evidence counts, unresolved/blocking thread counts and member identities.
+The projection shares the existing membership-filtered query and its snapshot; no
+migration or per-card API request is needed. Counts cover all submission versions.
+Missing dates are labelled No due date. Final deliverable submission and final
+approval remain unavailable, with their original panel placement preserved.
+
+Zod is updated to 4.6.7 and body-parser to 2.4.0 (qs 6.16.1). Fresh package metadata
+was needed for the transitive update; no override or audit suppression was added.
+`pnpm audit --audit-level=high` now passes; four moderate advisories remain.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 59 database integration,
+7 web unit tests and builds). All 12 controlled browser tests and both real API
+flows passed. Final UI follow-ups passed web typecheck/lint, formatting and the
+focused desktop/mobile layout check. Screenshots were inspected against the demo.
+
 ## UI reference and push checkpoint — October 24, 2026
 
 User reiterated that the original demo presentation must remain the visual reference.

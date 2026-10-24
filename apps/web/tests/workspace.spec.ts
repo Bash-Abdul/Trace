@@ -190,3 +190,67 @@ test('review queue filters waiting work and refreshes after a decision', async (
   await page.getByRole('button', { name: 'Refresh reviews' }).click();
   await expect(page.getByRole('heading', { name: 'No ongoing work in this view' })).toBeVisible();
 });
+
+test('live projects preserve the original card and overview layout with real progress', async ({
+  page,
+}) => {
+  await authenticate(page);
+  const progress = {
+    milestones: [
+      { id: 'research', required: true, state: 'APPROVED', evidence_count: 2 },
+      { id: 'prototype', required: true, state: 'REVISION_REQUESTED', evidence_count: 1 },
+    ],
+    unresolved_feedback: 1,
+    blocking_feedback: 1,
+    members: [
+      { user_id: 'author', email: 'author@example.com' },
+      { user_id: 'reviewer', email: 'reviewer@example.com' },
+    ],
+  };
+  const project = { ...projects[0], template_key: 'design', progress };
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ json: { projects: [project] } }),
+  );
+  await page.route('**/api/v1/projects/garden', (route) =>
+    route.fulfill({
+      json: {
+        ...project,
+        objectives: [
+          'Understand how neighbours use shared spaces.',
+          'Evaluate an accessible garden prototype.',
+        ],
+        milestones: [
+          { id: 'research', title: 'Research & insights', required: true },
+          { id: 'prototype', title: 'Prototype & evaluation', required: true },
+        ],
+        deliverables: [{ id: 'report', title: 'Final project report', required: true }],
+        members: [{ user_id: 'author', email: 'author@example.com', role: 'LEAD_AUTHOR' }],
+        proposals: [],
+        invitations: [],
+        events: [],
+      },
+    }),
+  );
+  await page.goto('/projects');
+  await expect(page.locator('.project-icon.sage')).toBeVisible();
+  await expect(page.getByLabel('1 of 2 milestones approved')).toBeVisible();
+  await expect(page.locator('.people-stack .avatar')).toHaveCount(2);
+  await expect(page.locator('.card-feedback')).toContainText(
+    '1 unresolved milestone feedback thread',
+  );
+  await page.screenshot({ path: '/tmp/trace-restored-project-cards.png', fullPage: true });
+  await page.getByRole('heading', { name: 'Community garden' }).getByRole('link').click();
+  await expect(page.getByRole('heading', { name: 'A question worth exploring.' })).toBeVisible();
+  await expect(page.locator('.objective')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'At a glance' })).toBeVisible();
+  await expect(page.locator('.project-summary')).toContainText('3 items');
+  await expect(page.locator('.milestone-row')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Request final approval' })).toBeDisabled();
+  await page.screenshot({ path: '/tmp/trace-restored-project-overview.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.locator('.sidebar').evaluate((node) => node.getBoundingClientRect().right))
+    .toBeLessThanOrEqual(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: '/tmp/trace-restored-project-mobile.png', fullPage: true });
+});

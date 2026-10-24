@@ -48,6 +48,18 @@ and deliverables have stable editable rows with reorder and required/optional co
 Proposal feedback is shown in Overview → Proposal history & feedback. The Milestone
 feedback tab leads to version-specific feedback inside each milestone.
 
+## Preserve the original design
+
+Commit `1964b86` is the visual reference for the original demo. Live project cards
+and project overview reuse its CSS, typography, coloured icons, segmented progress,
+numbered objectives, milestone rows and side panels. Keep these layouts when connecting
+additional APIs. Navigation remains as currently agreed with the user.
+
+Project summaries provide live milestone progress, evidence counts, feedback counts
+and member avatars without fetching each card separately. Dates have no backend field
+yet and display “No due date”; final-deliverable submission and final approval retain
+their panels with unavailable actions labelled clearly.
+
 ## Current limits
 
 Live project lists and counts cover at most 100 recently updated projects. The

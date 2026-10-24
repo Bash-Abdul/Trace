@@ -155,3 +155,13 @@ mappings/coverage, final deliverable approval and portfolios remain subsequent w
 Member removal, lead transfer, dormant Reviewer management and
 succession have no public endpoints yet. Invitation email dispatch is not part
 of this first flow. Preserve historical attribution when adding membership changes.
+
+## Project presentation summaries
+
+List and detail responses include `progress` alongside the existing fields. Its
+`milestones` array preserves structure order and contains `id`, `required`, `state`
+and `evidence_count` (current draft evidence, without counting immutable versions
+again). `unresolved_feedback` and `blocking_feedback` count unresolved threads across
+all versions. `members` provides member IDs/emails for avatars. These reads use the
+same project membership filter and statement snapshot as the containing response.
+They do not grant any new mutation permissions or implement final-project approval.

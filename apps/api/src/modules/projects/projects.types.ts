@@ -52,6 +52,19 @@ export interface MemberProject extends ProjectRecord {
   role: Role;
 }
 
+export interface ProjectProgress {
+  milestones: {
+    id: string;
+    required: boolean;
+    state: 'NOT_STARTED' | 'DRAFT' | 'AWAITING_REVIEW' | 'REVISION_REQUESTED' | 'APPROVED';
+    evidence_count: number;
+  }[];
+  unresolved_feedback: number;
+  blocking_feedback: number;
+  members: Pick<ProjectMember, 'user_id' | 'email'>[];
+}
+export type ProjectListItem = MemberProject & { progress: ProjectProgress };
+
 export interface ProjectMember {
   user_id: string;
   email: string;
@@ -112,6 +125,7 @@ export interface ProjectEvent {
 }
 
 export interface ProjectDetail extends MemberProject, ProjectStructure {
+  progress: ProjectProgress;
   members: ProjectMember[];
   invitations: InvitationRecord[];
   proposals: ProposalRecord[];

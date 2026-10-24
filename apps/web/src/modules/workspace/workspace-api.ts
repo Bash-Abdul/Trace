@@ -2,6 +2,19 @@ import { z } from 'zod';
 
 const roleSchema = z.enum(['LEAD_AUTHOR', 'AUTHOR', 'MAIN_REVIEWER', 'DORMANT_REVIEWER']);
 const item = z.object({ id: z.string(), title: z.string(), required: z.boolean() });
+const progressSchema = z.object({
+  milestones: z.array(
+    z.object({
+      id: z.string(),
+      required: z.boolean(),
+      state: z.enum(['NOT_STARTED', 'DRAFT', 'AWAITING_REVIEW', 'REVISION_REQUESTED', 'APPROVED']),
+      evidence_count: z.number(),
+    }),
+  ),
+  unresolved_feedback: z.number(),
+  blocking_feedback: z.number(),
+  members: z.array(z.object({ user_id: z.string(), email: z.string() })),
+});
 export const summarySchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -16,6 +29,8 @@ export const summarySchema = z.object({
     'ACTIVE',
   ]),
   version: z.number(),
+  template_key: z.string().optional(),
+  progress: progressSchema.optional(),
   role: roleSchema,
 });
 const structureSchema = z.object({

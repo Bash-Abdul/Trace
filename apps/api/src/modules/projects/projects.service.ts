@@ -13,6 +13,7 @@ import type {
   Decision,
   Role,
   MemberProject,
+  ProjectListItem,
   ProjectDetailResponse,
   InvitationResponse,
   StructureItem,
@@ -67,7 +68,7 @@ function requireInvitationPermission(project: MemberProject, role: Invitation['r
   throw forbidden('This invitation role is not allowed for your project.');
 }
 
-export function listProjects(client: Database, userId: string): Promise<MemberProject[]> {
+export function listProjects(client: Database, userId: string): Promise<ProjectListItem[]> {
   return repository.listProjects(client, userId);
 }
 
