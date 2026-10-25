@@ -1,3 +1,5 @@
+import { NotificationBell } from '../../modules/notifications/NotificationBell';
+import { useActionToast } from '../../modules/notifications/action-toast';
 import { useState, useSyncExternalStore } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
@@ -38,6 +40,7 @@ function isMobileViewport() {
 }
 export function AppShell() {
   const { toast, dismiss } = useDemo();
+  const actionToast = useActionToast();
   const { projects: liveProjects, persona, queue } = useWorkspaceView();
   const { session } = useAuth();
   const projects = (liveProjects ?? [])
@@ -190,13 +193,7 @@ export function AppShell() {
             >
               <Search size={19} />
             </button>
-            <Link
-              className="icon-button notification-button"
-              to="/activity"
-              aria-label="View activity"
-            >
-              <Bell size={19} />
-            </Link>
+            <NotificationBell />
             <div className="persona-select">
               <Avatar name={email} small />
               <span aria-label="Workspace perspective">
@@ -213,10 +210,18 @@ export function AppShell() {
           <span>Trace · Your workspace</span>
         </footer>
       </div>
-      {toast && (
-        <div className="toast" role="status">
-          <span>{toast}</span>
-          <button className="icon-button" onClick={dismiss} aria-label="Dismiss message">
+      {(actionToast.toast || toast) && (
+        <div
+          className="toast"
+          role={actionToast.toast?.error ? 'alert' : actionToast.toast ? undefined : 'status'}
+          aria-live="polite"
+        >
+          <span>{actionToast.toast?.message ?? toast}</span>
+          <button
+            className="icon-button"
+            onClick={actionToast.toast ? actionToast.dismiss : dismiss}
+            aria-label="Dismiss message"
+          >
             <X size={16} />
           </button>
         </div>

@@ -1,3 +1,4 @@
+import { enqueue } from '../notifications/notifications.repository.js';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { withTransaction, type Database } from '../../config/db.js';
@@ -104,7 +105,7 @@ async function record(
     ...details,
   });
   if (roles.length) {
-    await repository.notify(client, params.projectId, params.milestoneId, userId, action, roles);
+    await enqueue(client, params.projectId, userId, action, roles, details, params.milestoneId);
   }
 }
 

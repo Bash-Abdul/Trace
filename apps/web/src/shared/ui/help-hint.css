@@ -1,0 +1,36 @@
+.help-hint {
+  display: inline-flex;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+.help-hint-button {
+  border: 0;
+  background: transparent;
+  color: #6c785f;
+  padding: 4px;
+  display: inline-flex;
+  cursor: help;
+}
+.help-hint-button:focus-visible {
+  outline: 2px solid #6c785f;
+  border-radius: 50%;
+}
+.help-hint-content {
+  position: fixed;
+  z-index: 100;
+  width: min(270px, calc(100vw - 32px));
+  max-height: 35vh;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fffefb;
+  box-shadow: 0 4px 16px #243d2920;
+  color: #42533c;
+  font:
+    400 12px/1.6 'DM Sans',
+    sans-serif;
+  letter-spacing: normal;
+  text-transform: none;
+}

@@ -1,3 +1,4 @@
+import { HelpHint } from './HelpHint';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ArrowUpRight, Check, FolderOpen, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -37,16 +38,19 @@ export function SectionHeading({
   count,
   to,
   label = 'View all',
+  help,
 }: {
   title: string;
   count?: number;
   to?: string;
   label?: string;
+  help?: string;
 }) {
   return (
     <div className="section-heading">
       <h2>
         {title}
+        {help && <HelpHint label={title}>{help}</HelpHint>}
         {count !== undefined && <span className="count">{count}</span>}
       </h2>
       {to && (

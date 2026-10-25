@@ -1,6 +1,5 @@
 import type { PoolClient } from 'pg';
 import type { Database } from '../../config/db.js';
-import type { Role } from '../projects/projects.types.js';
 import type {
   Decision,
   Detail,
@@ -200,22 +199,6 @@ export async function updateFeedback(
   return true;
 }
 
-export async function notify(
-  client: PoolClient,
-  projectId: string,
-  milestoneId: string,
-  actorId: string,
-  action: string,
-  roles: Role[],
-): Promise<void> {
-  await client.query(
-    `INSERT INTO project_notifications (project_id, milestone_id, recipient_id, action)
-     SELECT project_id, $2, user_id, $4 FROM project_memberships
-     WHERE project_id = $1 AND user_id <> $3 AND role = ANY($5::text[])`,
-    [projectId, milestoneId, actorId, action, roles],
-  );
-}
-
 export async function notifications(
   database: Database,
   projectId: string,
@@ -228,7 +211,7 @@ export async function notifications(
     created_at: Date;
   }>(
     `SELECT id, milestone_id, action, created_at FROM project_notifications
-     WHERE project_id = $1 AND recipient_id = $2 ORDER BY created_at DESC, id LIMIT 100`,
+     WHERE project_id = $1 AND recipient_id = $2 AND milestone_id IS NOT NULL ORDER BY created_at DESC, id LIMIT 100`,
     [projectId, userId],
   );
   return result.rows;

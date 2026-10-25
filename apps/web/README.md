@@ -71,8 +71,10 @@ read/unread notification history. The original sample review page is at `/demo/r
 Live project tabs restore Overview, Milestones, Evidence, Feedback, Activity and Team;
 evidence and feedback tabs link to the live milestone workflows.
 
-File/image uploads (#2), invitation email delivery (#3), and app-wide notifications
-(#4) remain follow-ups. Invitation links are shared manually; registration/recovery
+The top-bar bell now opens the live notification inbox, with unread counts,
+read/unread controls, mark-all and older history. Workspace mutations show action
+toasts using the existing styling. Apply `pnpm db:migrate` for its additive migration.
+File/image uploads (#2) and invitation email delivery (#3) remain follow-ups. Invitation links are shared manually; registration/recovery
 emails still require the email worker (#1). No database migration is needed.
 
 ## Checks

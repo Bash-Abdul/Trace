@@ -44,6 +44,9 @@ const queueItem = {
   action: 'Review submission',
 };
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/projects/notifications*', (route) =>
+    route.fulfill({ json: { items: [], unread_count: 0, next_cursor: null } }),
+  );
   await page.route('**/api/v1/projects/reviews', (route) =>
     route.fulfill({ json: { items: [queueItem], truncated: false } }),
   );
@@ -242,6 +245,14 @@ test('live projects preserve the original card and overview layout with real pro
   await page.getByRole('heading', { name: 'Community garden' }).getByRole('link').click();
   await expect(page.getByRole('heading', { name: 'A question worth exploring.' })).toBeVisible();
   await expect(page.locator('.objective')).toHaveCount(2);
+  const help = page.getByRole('button', { name: 'Help: The path ahead', exact: true });
+  await help.focus();
+  await expect(page.getByRole('tooltip')).toContainText('milestones in your project plan');
+  await help.press('Escape');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  await help.hover();
+  await expect(page.getByRole('tooltip')).toBeVisible();
+  await page.getByRole('heading', { name: 'A question worth exploring.' }).hover();
   await expect(page.getByRole('heading', { name: 'At a glance' })).toBeVisible();
   await expect(page.locator('.project-summary')).toContainText('3 items');
   await expect(page.locator('.milestone-row')).toHaveCount(2);
@@ -253,4 +264,63 @@ test('live projects preserve the original card and overview layout with real pro
     .toBeLessThanOrEqual(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '/tmp/trace-restored-project-mobile.png', fullPage: true });
+});
+
+test('notification bell supports read state, failures and navigation on mobile', async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) => route.fulfill({ json: { projects } }));
+  let read = false;
+  let fail = false;
+  const item = {
+    id: 'notification-1',
+    project_id: 'library',
+    project_title: 'Accessible library',
+    milestone_id: null,
+    milestone_title: null,
+    action: 'PROPOSAL_DECIDED',
+    details: { decision: 'APPROVE' },
+    created_at: '2026-10-24T12:00:00Z',
+  };
+  await page.route('**/api/v1/projects/notifications**', (route) => {
+    if (route.request().method() !== 'GET') {
+      expect(route.request().headers()['x-csrf-token']).toBe('test-csrf');
+      if (fail) return route.fulfill({ status: 500, json: {} });
+      read = route.request().url().endsWith('/read-all')
+        ? true
+        : route.request().postDataJSON().read;
+      return route.fulfill({ status: 204 });
+    }
+    return route.fulfill({
+      json: {
+        items: [{ ...item, read_at: read ? '2026-10-24T13:00:00Z' : null }],
+        unread_count: read ? 0 : 1,
+        next_cursor: null,
+      },
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/overview');
+  await page.getByRole('button', { name: 'Notifications (1 unread)', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Notifications' });
+  await expect(dialog.getByRole('link', { name: /Proposal approved/ })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Mark read', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Mark unread', exact: true })).toBeVisible();
+  await expect(page.locator('.toast')).toContainText('Notification marked read.');
+  await dialog.getByRole('button', { name: 'Mark unread', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Mark read', exact: true })).toBeVisible();
+  fail = true;
+  await dialog.getByRole('button', { name: 'Mark all as read' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('could not complete');
+  await expect(dialog.getByRole('button', { name: 'Mark read', exact: true })).toBeVisible();
+  fail = false;
+  await dialog.getByRole('button', { name: 'Mark all as read' }).click();
+  await expect(dialog.getByText('0 unread', { exact: true })).toBeVisible();
+  await page.screenshot({ path: '/tmp/trace-notifications-mobile.png', fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.screenshot({ path: '/tmp/trace-notifications-desktop.png', fullPage: true });
+  await dialog.getByRole('link', { name: /Proposal approved/ }).click();
+  await expect(page).toHaveURL(/\/projects\/library\?tab=overview$/);
+  await expect(dialog).toHaveCount(0);
 });

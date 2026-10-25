@@ -394,9 +394,6 @@
   .persona-select .avatar {
     display: none;
   }
-  .notification-button {
-    display: none !important;
-  }
   .workspace-footer span:first-child {
     max-width: 150px;
   }

@@ -69,4 +69,4 @@ export type MilestoneOperation = (
   suffix: string,
   body: object,
   method?: 'POST' | 'PATCH',
-) => Promise<void>;
+) => Promise<boolean>;

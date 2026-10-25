@@ -33,7 +33,8 @@ refreshes retain previous data with an error message. Links open the relevant pr
 proposal overview or milestone, where submission history and feedback are available.
 
 This is a current-work queue, not a notification history or read/unread inbox.
-Persistent app-wide notifications and delivery toasts remain issue #4. Invitation
+The persistent bell inbox and workspace action toasts are implemented separately;
+see [notifications.md](./notifications.md). Email delivery status remains a follow-up. Invitation
 email delivery remains #3; file/image uploads remain #2.
 
 Regression tests cover membership isolation, latest proposals, submission revisions

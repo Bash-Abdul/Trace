@@ -1,3 +1,4 @@
+import { notificationsRouter } from '../notifications/notifications.routes.js';
 import { reviewsRouter } from '../reviews/reviews.routes.js';
 import { notifications } from '../milestones/milestones.controller.js';
 import { notificationParams } from '../milestones/milestones.schema.js';
@@ -31,6 +32,7 @@ projectsRouter.use((request, response, next) => {
   return requireMutationOrigin(request, response, next);
 });
 projectsRouter.use('/reviews', reviewsRouter);
+projectsRouter.use('/notifications', notificationsRouter);
 projectsRouter.get('/templates', authenticateRead(controller.listTemplates));
 projectsRouter.get('/', authenticateRead(controller.listProjects));
 projectsRouter.post(

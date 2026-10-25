@@ -1,3 +1,4 @@
+import { HelpHint } from '../../../shared/ui/HelpHint';
 import { CircleCheck, FileCheck2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { CheckItem, MilestoneProgress, SectionHeading } from '../../../shared/ui/Primitives';
@@ -32,6 +33,7 @@ export function LiveProjectOverview({
         <section className="section-spaced">
           <SectionHeading
             title="The path ahead"
+            help="These are the milestones in your project plan. Open one to add evidence, submit work or follow its review. They are separate checkpoints, not automatic deadlines."
             to={`/projects/${project.id}?tab=milestones`}
             label="All milestones"
           />
@@ -75,7 +77,12 @@ export function LiveProjectOverview({
         <div className="panel deliverables-panel">
           <h2>
             <FileCheck2 size={18} />
-            Final deliverables
+            Final deliverables{' '}
+            <HelpHint label="Final deliverables">
+              The final outputs promised in your project plan. Their submission flow is coming
+              later; milestone evidence does not automatically count as a submitted final
+              deliverable.
+            </HelpHint>
           </h2>
           {project.deliverables.map((d) => (
             <div className="deliverable" key={d.id}>
@@ -99,7 +106,11 @@ export function LiveProjectOverview({
           </CheckItem>
           <CheckItem done={false}>Required deliverables submitted</CheckItem>
           <CheckItem done={!!progress && progress.blocking_feedback === 0}>
-            Blocking feedback resolved
+            Blocking feedback resolved{' '}
+            <HelpHint label="Blocking feedback">
+              This checklist tracks feedback flagged as blocking. The flag does not currently
+              prevent milestone approval, and final-project approval is not implemented yet.
+            </HelpHint>
           </CheckItem>
           <button className="button secondary full-width" disabled>
             Request final approval

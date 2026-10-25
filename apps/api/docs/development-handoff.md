@@ -2,6 +2,60 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Explicit feedback threads — October 24, 2026
+
+Feedback is now labelled and displayed as threads: an opening Reviewer comment,
+participant avatars/roles/timestamps, indented replies with a connecting line, a reply
+count and show/hide controls. Reply opens the existing action-aware composer; resolved
+threads offer Reviewer reopening. The submitted-version label and status remain visible.
+Replies are one level deep; no nested subthread model or backend workflow was added.
+The existing styles and help explanations are retained.
+
+October 25 checkpoint: notification inbox, help hints and feedback threads are included
+in the next `test` branch commit. Final thread changes passed web type checking, lint,
+build and both real API/browser flows, including reply visibility and resolution.
+
+## Milestone conversation clarity — October 24, 2026
+
+The milestone page now explains the role/state-specific next step. Submitted snapshots,
+feedback conversations and the actual review decision are named separately. Reviewers
+open a version-specific conversation composer explicitly; thread reply/update forms
+stay hidden until requested. The retained action dropdown changes the explanation,
+message label and submit button. Failed saves retain the form; successful saves close it.
+Author addressing still requires a separate evidence resubmission after revision requests.
+Reviewer resolution still does not approve a milestone. No backend permissions changed.
+
+Blocking feedback remains a recorded flag/checklist input, NOT an enforced milestone
+approval gate. The UI states this explicitly and directs Reviewers to Request revision
+when a new submission is required. Final-project approval remains unimplemented.
+Small help icons support hover, focus, tap and Escape for the path ahead, final
+deliverables, submitted work, decisions, feedback and the blocking flag. Existing demo
+styles/navigation are retained. Browser checks exercise hidden/revealed forms and the
+complete Author-addresses/Reviewer-resolves/revised-submission flow.
+
+## Notification inbox — October 24, 2026
+
+Design restoration/security checkpoint `143bfda` was pushed to `origin/test` before
+this increment. The existing top-bar bell now opens a persistent inbox with unread
+count, read/unread controls, mark-all and paginated history. Proposal and milestone
+notifications link to their existing work screens. Recipient/membership filtering
+applies to reads and updates; notification writes commit with domain actions.
+Workspace action toasts reuse the existing style. No email delivery is claimed.
+
+See [notifications.md](./notifications.md) for API contracts, migration, recipients
+and refresh behaviour. Migration `1792800000000_notification-inbox` is required;
+existing notification rows are preserved. The migration has been applied to this
+machine’s local development database as well as the isolated test database.
+No navigation or project-design rewrite.
+The read/unread inbox and workspace action-toast portion of issue #4 is implemented;
+email delivery (#3/#1), preferences and additional notification channels remain separate.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 62 integration and 7 web unit
+tests, plus builds). All 13 controlled browser checks and both real API/browser
+flows passed, including opening a proposal notification and persisting its read state.
+Desktop/mobile inbox screenshots were inspected. Notification changes are included
+with the feedback-thread checkpoint above.
+
 ## Restore original project presentation — October 24, 2026
 
 The original demo at `1964b86` is the design reference. Project cards again use its

@@ -1,3 +1,4 @@
+import { enqueue } from '../notifications/notifications.repository.js';
 import type { PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import type { Database } from '../../config/db.js';
@@ -301,6 +302,7 @@ export async function submitProposal(
   );
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'PROPOSAL_SUBMITTED', { version });
+  await enqueue(client, id, userId, 'PROPOSAL_SUBMITTED', ['MAIN_REVIEWER'], { version });
 
   return getProject(client, id, userId);
 }
@@ -331,6 +333,10 @@ export async function decideProposal(
     REJECT: 'PROPOSAL_REJECTED',
   };
   await repository.applyDecisionStatus(client, id, statuses[input.decision]);
+  await enqueue(client, id, userId, 'PROPOSAL_DECIDED', ['LEAD_AUTHOR', 'AUTHOR'], {
+    proposalId,
+    decision: input.decision,
+  });
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'PROPOSAL_DECIDED', {
     proposalId,
