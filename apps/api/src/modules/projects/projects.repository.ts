@@ -34,7 +34,7 @@ const progressSql = `jsonb_build_object(
     ) ORDER BY pm.position)
     FROM project_milestones pm
     LEFT JOIN milestone_submissions ms ON ms.milestone_id = pm.id
-    WHERE pm.project_id = p.id
+    WHERE pm.project_id = p.id AND pm.archived_at IS NULL
   ), '[]'::jsonb),
   'unresolved_feedback', (
     SELECT count(*)
@@ -98,14 +98,14 @@ export async function structure(client: PoolClient, id: string): Promise<Project
   const milestones = await client.query<{ id: string; title: string; required: boolean }>(
     `SELECT id, title, required
     FROM project_milestones
-    WHERE project_id = $1
+    WHERE project_id = $1 AND archived_at IS NULL
     ORDER BY position`,
     [id],
   );
   const deliverables = await client.query<{ id: string; title: string; required: boolean }>(
     `SELECT id, title, required
     FROM project_deliverables
-    WHERE project_id = $1
+    WHERE project_id = $1 AND archived_at IS NULL
     ORDER BY position`,
     [id],
   );
@@ -165,7 +165,7 @@ async function saveItems(
     ),
     removed AS (
       DELETE FROM ${table}
-      WHERE project_id = $1
+      WHERE project_id = $1 AND archived_at IS NULL
         AND id NOT IN (SELECT id FROM incoming)
     )
     INSERT INTO ${table} (id, project_id, position, title, required)
@@ -668,7 +668,7 @@ export async function findProjectDetail(
           ) ORDER BY i.position
         )
         FROM project_milestones i
-        WHERE i.project_id = p.id
+        WHERE i.project_id = p.id AND i.archived_at IS NULL
       ), '[]'),
       'deliverables', COALESCE((
         SELECT jsonb_agg(
@@ -679,7 +679,15 @@ export async function findProjectDetail(
           ) ORDER BY i.position
         )
         FROM project_deliverables i
-        WHERE i.project_id = p.id
+        WHERE i.project_id = p.id AND i.archived_at IS NULL
+      ), '[]'),
+      'archived_milestones', COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object('id', am.id, 'title', am.title, 'required', am.required)
+          ORDER BY am.archived_at, am.id
+        )
+        FROM project_milestones am
+        WHERE am.project_id = p.id AND am.archived_at IS NOT NULL
       ), '[]'),
       'members', COALESCE((
         SELECT jsonb_agg(

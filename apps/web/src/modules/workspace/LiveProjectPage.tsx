@@ -1,3 +1,4 @@
+import { ProjectChanges } from '../changes/ProjectChanges';
 import { ArrowLeft, ArrowUpRight, CalendarDays } from 'lucide-react';
 import { Badge } from '../../shared/ui/Primitives';
 import { LiveProjectOverview } from '../projects/components/LiveProjectOverview';
@@ -20,7 +21,7 @@ export function LiveProjectPage() {
 function ProjectContent({ id }: { id: string }) {
   const api = useProjectApi();
   const [params, setParams] = useSearchParams();
-  const tabs = ['overview', 'milestones', 'evidence', 'feedback', 'activity', 'team'];
+  const tabs = ['overview', 'milestones', 'evidence', 'feedback', 'activity', 'team', 'changes'];
   const tab = tabs.includes(params.get('tab') ?? '') ? params.get('tab')! : 'overview';
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [error, setError] = useState('');
@@ -250,92 +251,114 @@ function ProjectContent({ id }: { id: string }) {
           />
         ) : tab === 'overview' ? (
           <LiveProjectOverview project={project}>
-            <section className="panel form-panel live-section">
-              <h2>Proposal history & feedback</h2>
-              <p>
-                Proposal feedback concerns the project plan. Milestone feedback concerns evidence
-                submitted for an individual milestone.
-              </p>
-              {!project.proposals.length && <p>No proposals submitted yet.</p>}
-              {project.proposals.map((proposal) => (
-                <details
-                  key={proposal.id}
-                  open={
-                    project.role === 'MAIN_REVIEWER' &&
-                    project.status === 'PROPOSAL_IN_REVIEW' &&
-                    proposal.id === latest?.id
-                  }
+            {project.approval_route === 'EXTERNALLY_APPROVED' ? (
+              <section className="panel form-panel live-section">
+                <h2>Approved elsewhere</h2>
+                <p>
+                  This project uses an approval obtained outside Trace. There is no proposal to
+                  submit or approve here.
+                </p>
+                <p>
+                  {project.status === 'ACTIVE'
+                    ? 'The project is active. Authors submit evidence within each milestone; the main Reviewer reviews that work and provides feedback there.'
+                    : 'The project activates when its Author or lead and main Reviewer have joined.'}
+                </p>
+                <button
+                  className="button secondary"
+                  onClick={() => setParams({ tab: 'milestones' })}
                 >
-                  <summary>
-                    Version {proposal.version} ·{' '}
-                    {proposal.decision
-                      ? proposal.decision.replaceAll('_', ' ').toLowerCase()
-                      : 'Awaiting review'}
-                  </summary>
-                  <h3>{proposal.structure.title}</h3>
-                  <p>{proposal.structure.description}</p>
-                  <h4>Objectives</h4>
-                  <ul>
-                    {proposal.structure.objectives.map((o, i) => (
-                      <li key={i}>{o}</li>
-                    ))}
-                  </ul>
-                  <h4>Milestones</h4>
-                  <ol>
-                    {proposal.structure.milestones.map((m) => (
-                      <li key={m.id}>
-                        {m.title}
-                        {m.required ? ' (required)' : ' (optional)'}
-                      </li>
-                    ))}
-                  </ol>
-                  <h4>Deliverables</h4>
-                  <ul>
-                    {proposal.structure.deliverables.map((d) => (
-                      <li key={d.id}>
-                        {d.title}
-                        {d.required ? ' (required)' : ' (optional)'}
-                      </li>
-                    ))}
-                  </ul>
-                  {proposal.feedback && (
-                    <p>
-                      <strong>Proposal feedback:</strong> {proposal.feedback}
-                    </p>
+                  Open milestones
+                </button>
+              </section>
+            ) : (
+              <section className="panel form-panel live-section">
+                <h2>Proposal history & feedback</h2>
+                <p>
+                  Proposal feedback concerns the project plan. Milestone feedback concerns evidence
+                  submitted for an individual milestone.
+                </p>
+                {!project.proposals.length && <p>No proposals submitted yet.</p>}
+                {project.proposals.map((proposal) => (
+                  <details
+                    key={proposal.id}
+                    open={
+                      project.role === 'MAIN_REVIEWER' &&
+                      project.status === 'PROPOSAL_IN_REVIEW' &&
+                      proposal.id === latest?.id
+                    }
+                  >
+                    <summary>
+                      Version {proposal.version} ·{' '}
+                      {proposal.decision
+                        ? proposal.decision.replaceAll('_', ' ').toLowerCase()
+                        : 'Awaiting review'}
+                    </summary>
+                    <h3>{proposal.structure.title}</h3>
+                    <p>{proposal.structure.description}</p>
+                    <h4>Objectives</h4>
+                    <ul>
+                      {proposal.structure.objectives.map((o, i) => (
+                        <li key={i}>{o}</li>
+                      ))}
+                    </ul>
+                    <h4>Milestones</h4>
+                    <ol>
+                      {proposal.structure.milestones.map((m) => (
+                        <li key={m.id}>
+                          {m.title}
+                          {m.required ? ' (required)' : ' (optional)'}
+                        </li>
+                      ))}
+                    </ol>
+                    <h4>Deliverables</h4>
+                    <ul>
+                      {proposal.structure.deliverables.map((d) => (
+                        <li key={d.id}>
+                          {d.title}
+                          {d.required ? ' (required)' : ' (optional)'}
+                        </li>
+                      ))}
+                    </ul>
+                    {proposal.feedback && (
+                      <p>
+                        <strong>Proposal feedback:</strong> {proposal.feedback}
+                      </p>
+                    )}
+                  </details>
+                ))}
+                {project.role === 'MAIN_REVIEWER' &&
+                  project.status === 'PROPOSAL_IN_REVIEW' &&
+                  latest && (
+                    <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
+                      <h3>Review this proposal</h3>
+                      <label>
+                        Decision
+                        <select name="decision">
+                          <option value="APPROVE">Approve</option>
+                          <option value="REQUEST_CHANGES">Request changes</option>
+                          <option value="REJECT">
+                            Reject — this closes the proposal permanently
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        Proposal feedback
+                        <textarea name="feedback" maxLength={2000} rows={3} />
+                      </label>
+                      <p className="muted">
+                        Explain requested changes or rejection. Your decision applies to the
+                        submitted version shown above.
+                      </p>
+                      <button disabled={busy} className="button primary">
+                        Save decision
+                      </button>
+                    </form>
                   )}
-                </details>
-              ))}
-              {project.role === 'MAIN_REVIEWER' &&
-                project.status === 'PROPOSAL_IN_REVIEW' &&
-                latest && (
-                  <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
-                    <h3>Review this proposal</h3>
-                    <label>
-                      Decision
-                      <select name="decision">
-                        <option value="APPROVE">Approve</option>
-                        <option value="REQUEST_CHANGES">Request changes</option>
-                        <option value="REJECT">
-                          Reject — this closes the proposal permanently
-                        </option>
-                      </select>
-                    </label>
-                    <label>
-                      Proposal feedback
-                      <textarea name="feedback" maxLength={2000} rows={3} />
-                    </label>
-                    <p className="muted">
-                      Explain requested changes or rejection. Your decision applies to the submitted
-                      version shown above.
-                    </p>
-                    <button disabled={busy} className="button primary">
-                      Save decision
-                    </button>
-                  </form>
-                )}
-            </section>
+              </section>
+            )}
           </LiveProjectOverview>
         ) : null}
+        {tab === 'changes' && <ProjectChanges project={project} api={api} run={run} busy={busy} />}
         {tab === 'team' && <ProjectTeamPanel project={project} api={api} run={run} busy={busy} />}
         {['milestones', 'evidence', 'feedback'].includes(tab) && (
           <section className="panel form-panel">
@@ -352,6 +375,18 @@ function ProjectContent({ id }: { id: string }) {
                 : 'Open a milestone to work on its evidence and continue the feedback conversation.'}
             </p>
             <LiveMilestoneList project={project} />
+            {!!project.archived_milestones.length && (
+              <details>
+                <summary>Removed milestones · preserved history</summary>
+                <ul>
+                  {project.archived_milestones.map((m) => (
+                    <li key={m.id}>
+                      <Link to={`/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </section>
         )}
         {tab === 'activity' && (

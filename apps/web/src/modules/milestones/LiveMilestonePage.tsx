@@ -130,6 +130,21 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
         <p role="status">Opening milestone…</p>
       ) : (
         <>
+          {detail.milestone.archived_at && (
+            <div className="workflow-banner">
+              <p>
+                This milestone was removed from the active plan. Its submissions and discussions are
+                preserved; evidence can no longer be edited or submitted.
+              </p>
+            </div>
+          )}
+          {detail.state === 'REVISION_REQUESTED' &&
+            detail.submissions[0]?.decision === 'APPROVE' && (
+              <p className="soft-note">
+                The approved project plan changed. The earlier approval is preserved below, but this
+                milestone needs a new submission against the updated expectations.
+              </p>
+            )}
           <div className="page-heading">
             <div>
               <p className="eyebrow">
@@ -143,21 +158,24 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
             <div>
               <strong>Your next step</strong>
               <p>
-                {project.status !== 'ACTIVE'
-                  ? 'This project must be active before milestone work can begin.'
-                  : detail.state === 'APPROVED'
-                    ? 'This milestone is approved. You can still read and discuss its submitted work below; a thread does not undo approval.'
-                    : detail.state === 'AWAITING_REVIEW'
-                      ? project.role === 'MAIN_REVIEWER'
-                        ? 'Read the latest submitted evidence. Start a thread if you have a question, then approve the submission or request revision.'
-                        : 'Your submitted work is with the Reviewer. You can reply to threads while you wait for their decision.'
-                      : project.role === 'MAIN_REVIEWER'
-                        ? 'The Authors are preparing their work. You can review it once they submit a version.'
-                        : 'Add or revise your evidence and save the draft. The lead Author then submits it for review.'}
+                {detail.milestone.archived_at
+                  ? 'This milestone is archived. Read its preserved work and finish any existing feedback threads below.'
+                  : project.status !== 'ACTIVE'
+                    ? 'This project must be active before milestone work can begin.'
+                    : detail.state === 'APPROVED'
+                      ? 'This milestone is approved. You can still read and discuss its submitted work below; a thread does not undo approval.'
+                      : detail.state === 'AWAITING_REVIEW'
+                        ? project.role === 'MAIN_REVIEWER'
+                          ? 'Read the latest submitted evidence. Start a thread if you have a question, then approve the submission or request revision.'
+                          : 'Your submitted work is with the Reviewer. You can reply to threads while you wait for their decision.'
+                        : project.role === 'MAIN_REVIEWER'
+                          ? 'The Authors are preparing their work. You can review it once they submit a version.'
+                          : 'Add or revise your evidence and save the draft. The lead Author then submits it for review.'}
               </p>
             </div>
           </div>
           {project.status === 'ACTIVE' &&
+            !detail.milestone.archived_at &&
             ['LEAD_AUTHOR', 'AUTHOR'].includes(project.role) &&
             ['NOT_STARTED', 'DRAFT', 'REVISION_REQUESTED'].includes(detail.state) && (
               <EvidenceEditor
@@ -171,6 +189,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
               />
             )}
           {project.status === 'ACTIVE' &&
+            !detail.milestone.archived_at &&
             project.role === 'LEAD_AUTHOR' &&
             detail.state === 'DRAFT' && (
               <button
@@ -216,6 +235,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                   </p>
                 )}
                 {project.status === 'ACTIVE' &&
+                  !detail.milestone.archived_at &&
                   project.role === 'MAIN_REVIEWER' &&
                   (feedbackFor !== submission.id ? (
                     <button
@@ -262,6 +282,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
               </details>
             ))}
             {project.status === 'ACTIVE' &&
+              !detail.milestone.archived_at &&
               project.role === 'MAIN_REVIEWER' &&
               detail.state === 'AWAITING_REVIEW' && (
                 <form onSubmit={review}>

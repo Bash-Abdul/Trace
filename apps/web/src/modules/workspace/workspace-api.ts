@@ -33,7 +33,7 @@ export const summarySchema = z.object({
   progress: progressSchema.optional(),
   role: roleSchema,
 });
-const structureSchema = z.object({
+export const structureSchema = z.object({
   title: z.string(),
   description: z.string(),
   objectives: z.array(z.string()),
@@ -41,6 +41,7 @@ const structureSchema = z.object({
   deliverables: z.array(item),
 });
 export const detailSchema = summarySchema.extend({
+  archived_milestones: z.array(item).default([]),
   objectives: z.array(z.string()),
   milestones: z.array(item),
   deliverables: z.array(item),
@@ -65,7 +66,13 @@ export const detailSchema = summarySchema.extend({
     }),
   ),
   events: z.array(
-    z.object({ id: z.string(), action: z.string(), actor: z.string(), created_at: z.string() }),
+    z.object({
+      id: z.string(),
+      action: z.string(),
+      actor: z.string(),
+      created_at: z.string(),
+      details: z.unknown().optional(),
+    }),
   ),
 });
 export const templatesSchema = z.object({

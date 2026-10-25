@@ -8,6 +8,7 @@ function item(record: QueueRecord, kind: QueueKind): QueueItem {
   const reviewer = record.role === 'MAIN_REVIEWER';
   const waitingForReview = [
     'PROPOSAL_IN_REVIEW',
+    'PROPOSED',
     'AWAITING_REVIEW',
     'ADDRESSED_BY_AUTHOR',
   ].includes(record.state);
@@ -44,7 +45,9 @@ export async function getQueue(userId: string): Promise<ReviewQueue> {
     const proposals = await repository.proposals(client, userId, roles, limit + 1);
     const submissions = await repository.submissions(client, userId, roles, limit + 1);
     const feedback = await repository.feedback(client, userId, roles, limit + 1);
+    const changes = await repository.changes(client, userId, roles, limit + 1);
     const items = [
+      ...changes.slice(0, limit).map((row) => item(row, 'PROJECT_CHANGE')),
       ...proposals.slice(0, limit).map((row) => item(row, 'PROPOSAL')),
       ...submissions.slice(0, limit).map((row) => item(row, 'MILESTONE_SUBMISSION')),
       ...feedback.slice(0, limit).map((row) => item(row, 'MILESTONE_FEEDBACK')),
@@ -56,7 +59,7 @@ export async function getQueue(userId: string): Promise<ReviewQueue> {
     );
     return {
       items,
-      truncated: [proposals, submissions, feedback].some((rows) => rows.length > limit),
+      truncated: [proposals, submissions, feedback, changes].some((rows) => rows.length > limit),
     };
   });
 }

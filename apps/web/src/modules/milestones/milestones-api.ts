@@ -9,7 +9,12 @@ export const evidenceSchema = z.object({
   updated_by: z.string(),
 });
 export const milestoneDetailSchema = z.object({
-  milestone: z.object({ id: z.string(), title: z.string(), required: z.boolean() }),
+  milestone: z.object({
+    id: z.string(),
+    title: z.string(),
+    required: z.boolean(),
+    archived_at: z.string().nullable().optional(),
+  }),
   version: z.number(),
   state: z.enum(['NOT_STARTED', 'DRAFT', 'AWAITING_REVIEW', 'REVISION_REQUESTED', 'APPROVED']),
   evidence: z.array(evidenceSchema),

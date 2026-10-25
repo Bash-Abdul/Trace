@@ -16,6 +16,16 @@ export function actionMessage(path: string, method: string) {
       : path.endsWith('/accept')
         ? 'Invitation accepted.'
         : 'Invitation link created.';
+  if (path.includes('/changes'))
+    return path.endsWith('/minor')
+      ? 'Minor edit saved.'
+      : path.endsWith('/submit')
+        ? 'Project change submitted for review.'
+        : path.endsWith('/decision')
+          ? 'Project change decision saved.'
+          : path.endsWith('/withdraw')
+            ? 'Project change withdrawn.'
+            : 'Project change draft saved.';
   if (path.includes('/feedback')) return 'Milestone feedback saved.';
   if (path.endsWith('/decision'))
     return path.includes('/milestones/') ? 'Milestone decision saved.' : 'Proposal decision saved.';

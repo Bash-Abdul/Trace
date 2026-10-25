@@ -12,7 +12,8 @@ export interface QueueRecord {
   blocking: boolean;
   updated_at: Date;
 }
-export type QueueKind = 'PROPOSAL' | 'MILESTONE_SUBMISSION' | 'MILESTONE_FEEDBACK';
+export type QueueKind =
+  'PROJECT_CHANGE' | 'PROPOSAL' | 'MILESTONE_SUBMISSION' | 'MILESTONE_FEEDBACK';
 export interface QueueItem extends QueueRecord {
   kind: QueueKind;
   perspective: 'author' | 'reviewer';

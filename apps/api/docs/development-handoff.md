@@ -2,6 +2,45 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Controlled project changes — October 25, 2026
+
+Issue #7 is implemented locally: the project Changes tab supports declared minor
+wording edits, collaborative major-change drafts, lead submission/withdrawal and
+current-main-reviewer approval/rejection. Before/after comparisons and minor history
+reuse the existing presentation. Review queue and in-app notifications include changes.
+No email or reviewer-handover work is included.
+
+Removed milestones are archived, never cascade-deleted with their evidence. Their
+history remains linked from Milestones; existing feedback can still be resolved.
+Changed expectations invalidate affected current approvals while preserving previous
+decisions. Affected draft versions also increment. Pending affected submissions must
+be decided before applying a change. Full behaviour, limits and routes are in
+[project-changes.md](./project-changes.md).
+
+Migration `1792890000000_project-changes` is additive and deliberately forward-only.
+It was tested against the isolated test database before application to development.
+Verification: 54 API unit/HTTP tests, 68 database integration tests, 7 web unit tests,
+13 controlled browser tests and both live API/browser flows passed. Type checking,
+lint, formatting and builds passed; desktop/mobile comparison screenshots inspected.
+Externally approved projects show an approval-route explanation and a milestone
+action instead of the irrelevant proposal history/review form. A focused browser
+regression covers that distinction. This increment is included in the project-change
+checkpoint. Next product work is group member removal and
+lead transfer (#8); reviewer handover/succession (#17) remains last.
+
+## Remaining-work tracking and priority — October 25, 2026
+
+[Roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19) links existing issues #1–#6
+and new feature issues #7–#18. It distinguishes completed notification functionality
+from remaining work, records blocking-feedback enforcement under final approval (#12),
+and tracks history pagination/idempotency (#15). SSE (#5) is optional for MVP; native
+mobile (#18) is a separate future phase, while responsive web remains required.
+
+The owner's latest priority is explicit: **reviewer handover/succession (#17) is the
+last planned feature**. Group lead transfer (#8) remains earlier. Next is controlled
+changes to approved projects (#7). This supersedes earlier phase ordering in this
+handoff and the original roadmap; preserve the original demo design throughout.
+
 ## Explicit feedback threads — October 24, 2026
 
 Feedback is now labelled and displayed as threads: an opening Reviewer comment,

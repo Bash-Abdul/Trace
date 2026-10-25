@@ -1,3 +1,4 @@
+import { changesRouter } from '../changes/changes.routes.js';
 import { notificationsRouter } from '../notifications/notifications.routes.js';
 import { reviewsRouter } from '../reviews/reviews.routes.js';
 import { notifications } from '../milestones/milestones.controller.js';
@@ -83,3 +84,5 @@ projectsRouter.get(
   validate({ params: notificationParams }),
   authenticateRead(notifications),
 );
+
+projectsRouter.use('/:projectId/changes', changesRouter);

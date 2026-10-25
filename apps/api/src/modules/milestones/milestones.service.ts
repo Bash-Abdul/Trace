@@ -127,6 +127,10 @@ export async function saveDraft(
   input: Draft,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['LEAD_AUTHOR', 'AUTHOR']);
   requireVersion(current.version, input.version);
   if (!['NOT_STARTED', 'DRAFT', 'REVISION_REQUESTED'].includes(current.state)) {
@@ -166,6 +170,10 @@ export async function submit(
   version: number,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['LEAD_AUTHOR']);
   requireVersion(current.version, version);
   if (current.state !== 'DRAFT') {
@@ -192,6 +200,10 @@ export async function decide(
   input: Decision,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['MAIN_REVIEWER']);
   requireVersion(current.version, input.version);
   const latest = (await repository.versions(client, params.milestoneId))[0];
@@ -226,6 +238,8 @@ export async function addFeedback(
   input: NewFeedback,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict('This milestone is archived. Existing threads can still be resolved.');
   requireRole(current.project, ['MAIN_REVIEWER']);
   const submission = (await repository.versions(client, params.milestoneId)).find(
     (item) => item.id === submissionId,

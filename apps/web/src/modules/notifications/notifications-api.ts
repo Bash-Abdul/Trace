@@ -21,6 +21,14 @@ export type Notification = Inbox['items'][number];
 export function notificationLabel(item: Notification) {
   const decision = item.details.decision;
   switch (item.action) {
+    case 'PROJECT_MINOR_EDIT':
+      return 'Project wording updated';
+    case 'PROJECT_CHANGE_SUBMITTED':
+      return 'Project change ready for review';
+    case 'PROJECT_CHANGE_WITHDRAWN':
+      return 'Project change withdrawn';
+    case 'PROJECT_CHANGE_DECIDED':
+      return decision === 'APPROVE' ? 'Project change approved' : 'Project change rejected';
     case 'PROPOSAL_SUBMITTED':
       return 'Proposal ready for review';
     case 'PROPOSAL_DECIDED':
@@ -55,6 +63,8 @@ export function notificationLabel(item: Notification) {
   }
 }
 export function notificationDestination(item: Notification) {
+  if (item.action.startsWith('PROJECT_CHANGE_') || item.action === 'PROJECT_MINOR_EDIT')
+    return `/projects/${item.project_id}?tab=changes`;
   return item.milestone_id
     ? `/projects/${item.project_id}/milestones/${item.milestone_id}`
     : `/projects/${item.project_id}?tab=overview`;

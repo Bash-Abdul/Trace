@@ -267,6 +267,56 @@ test('connected workspace: group invitations, proposal approval and milestone re
     );
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.screenshot({ path: '/tmp/trace-milestone-desktop.png', fullPage: true });
+    // Active-plan changes use a separate draft and require the main Reviewer's approval.
+    await page.goto(projectUrl);
+    await page.getByRole('tab', { name: 'Changes', exact: true }).click();
+    await page.getByRole('button', { name: 'Correct wording', exact: true }).click();
+    await page
+      .getByLabel('Reason for the change')
+      .fill('Correct punctuation without changing the agreed meaning.');
+    await page
+      .getByLabel('About your project')
+      .fill('A shared draft updated by the invited author!');
+    await page.getByLabel('I confirm that meaning, scope and requirements are unchanged.').check();
+    await page.getByRole('button', { name: 'Save minor edit', exact: true }).click();
+    await page.getByRole('button', { name: 'Propose a project change', exact: true }).click();
+    await page
+      .getByLabel('Reason for the change')
+      .fill('Include a final presentation of our research.');
+    await page.getByRole('button', { name: 'Add milestone', exact: true }).click();
+    const milestoneTitles = page.getByLabel(/Milestone \d+ title/);
+    await milestoneTitles.last().fill('Community presentation');
+    await page.getByRole('button', { name: 'Save change draft', exact: true }).click();
+    await page.getByRole('button', { name: 'Submit change for review', exact: true }).click();
+    await expect(page.getByText('Awaiting Reviewer', { exact: true })).toBeVisible();
+    await reviewer.goto(projectUrl + '?tab=changes');
+    await expect(reviewer.getByText('Include a final presentation of our research.')).toBeVisible();
+    await reviewer
+      .getByLabel('Project change feedback')
+      .fill('The added milestone fits the agreed plan.');
+    await reviewer.getByRole('button', { name: 'Save change decision', exact: true }).click();
+    await expect(reviewer.getByText('Approved and applied', { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByText('Approved and applied', { exact: true })).toBeVisible();
+    await page.getByText('Compare before and proposed plans', { exact: true }).click();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.screenshot({
+      path: '/tmp/trace-project-changes-desktop.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: '/tmp/trace-project-changes-mobile.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole('tab', { name: 'Milestones', exact: true }).click();
+    await expect(page.getByRole('link', { name: /Community presentation/ })).toBeVisible();
     await page.goto('/workspace/new');
     await page.getByLabel('Starting template').selectOption('custom');
     await page.getByLabel('Milestone 1 title', { exact: true }).fill('Research');

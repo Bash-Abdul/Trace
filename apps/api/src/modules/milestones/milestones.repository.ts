@@ -17,7 +17,7 @@ export async function milestone(
   milestoneId: string,
 ): Promise<Detail['milestone'] | null> {
   const result = await database.query<Detail['milestone']>(
-    `SELECT id, title, required FROM project_milestones
+    `SELECT id, title, required, archived_at FROM project_milestones
      WHERE id = $1 AND project_id = $2`,
     [milestoneId, projectId],
   );

@@ -54,7 +54,7 @@ export interface FeedbackMessage {
   created_at: Date;
 }
 export interface Detail {
-  milestone: { id: string; title: string; required: boolean };
+  milestone: { id: string; title: string; required: boolean; archived_at: Date | null };
   version: number;
   state: State;
   evidence: Evidence[];

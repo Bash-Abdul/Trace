@@ -324,3 +324,35 @@ test('notification bell supports read state, failures and navigation on mobile',
   await expect(page).toHaveURL(/\/projects\/library\?tab=overview$/);
   await expect(dialog).toHaveCount(0);
 });
+
+test('externally approved projects explain milestone review instead of showing proposal controls', async ({
+  page,
+}) => {
+  await authenticate(page);
+  const project = {
+    ...projects[0],
+    approval_route: 'EXTERNALLY_APPROVED',
+    role: 'MAIN_REVIEWER',
+    objectives: ['Explore'],
+    milestones: [],
+    deliverables: [],
+    members: [],
+    invitations: [],
+    proposals: [],
+    events: [],
+  };
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ json: { projects: [project] } }),
+  );
+  await page.route('**/api/v1/projects/garden', (route) => route.fulfill({ json: project }));
+  await page.goto('/projects/garden');
+  await expect(
+    page.getByRole('heading', { name: 'Approved elsewhere', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Proposal history & feedback' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open milestones', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Milestones', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+});

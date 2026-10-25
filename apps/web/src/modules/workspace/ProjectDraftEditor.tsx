@@ -6,11 +6,15 @@ export function ProjectDraftEditor({
   busy,
   save,
   cancel,
+  changeMode,
+  reason = '',
 }: {
   project: ProjectDetail;
   busy: boolean;
   save: (body: unknown) => Promise<void>;
   cancel: () => void;
+  changeMode?: 'minor' | 'major';
+  reason?: string;
 }) {
   const [milestones, setMilestones] = useState<StructureItem[]>(() =>
     project.milestones.map((item) => ({ ...item, key: item.id })),
@@ -28,6 +32,10 @@ export function ProjectDraftEditor({
         .filter(Boolean);
     void save({
       version: project.version,
+      ...(changeMode ? { reason: data.get('reason') } : {}),
+      ...(changeMode === 'minor'
+        ? { meaningUnchanged: data.get('meaningUnchanged') === 'on' }
+        : {}),
       title: data.get('title'),
       description: data.get('description'),
       objectives: lines('objectives'),
@@ -37,7 +45,26 @@ export function ProjectDraftEditor({
   }
   return (
     <form className="panel form-panel" onSubmit={submit}>
-      <h2>Shape the project brief</h2>
+      <h2>
+        {changeMode === 'minor'
+          ? 'Correct the wording'
+          : changeMode === 'major'
+            ? 'Draft a project change'
+            : 'Shape the project brief'}
+      </h2>
+      {changeMode && (
+        <>
+          <p>
+            {changeMode === 'minor'
+              ? 'Keep the meaning and requirements unchanged. Structural changes need Reviewer approval.'
+              : 'The current plan stays in place until your main Reviewer approves this proposal.'}
+          </p>
+          <label>
+            Reason for the change
+            <textarea name="reason" required maxLength={2000} defaultValue={reason} rows={2} />
+          </label>
+        </>
+      )}
       <label>
         Project title
         <input name="title" defaultValue={project.title} required maxLength={120} />
@@ -68,6 +95,7 @@ export function ProjectDraftEditor({
         onChange={setMilestones}
         max={30}
         disabled={busy}
+        allowStructure={changeMode !== 'minor'}
       />
       <StructureEditor
         label="Deliverable"
@@ -75,17 +103,28 @@ export function ProjectDraftEditor({
         onChange={setDeliverables}
         max={20}
         disabled={busy}
+        allowStructure={changeMode !== 'minor'}
       />
       <p className="muted">
         Reordering or renaming keeps existing milestone identities. Submitted proposal versions keep
         their original structure.
       </p>
+      {changeMode === 'minor' && (
+        <label>
+          <input type="checkbox" name="meaningUnchanged" required /> I confirm that meaning, scope
+          and requirements are unchanged.
+        </label>
+      )}
       <div className="form-actions">
         <button disabled={busy} type="button" className="button secondary" onClick={cancel}>
           Cancel
         </button>
         <button disabled={busy} className="button primary">
-          Save brief
+          {changeMode === 'minor'
+            ? 'Save minor edit'
+            : changeMode === 'major'
+              ? 'Save change draft'
+              : 'Save brief'}
         </button>
       </div>
     </form>

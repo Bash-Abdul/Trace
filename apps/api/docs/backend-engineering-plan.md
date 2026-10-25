@@ -1,7 +1,8 @@
 # Trace Backend Engineering Plan
 
 Status: Approved target plan  
-Current phase: Phase 1 in progress; the initial TypeScript/Express API scaffold exists  
+Current implementation: core auth, project/proposal workflows, text/link milestone reviews and notification inbox implemented; controlled active-project changes implemented locally. Remaining work is tracked in [roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19).
+
 Authority: This is the authoritative backend engineering plan for Trace
 
 ## How to use this plan
@@ -435,6 +436,22 @@ Before real users, prepare and exercise deployment/rollback, database restore, o
 | **Not justified** | Per-evidence approval | Approval occurs at Milestone Submission level |
 
 ## 24. Phased roadmap
+
+### Priority update — October 25, 2026
+
+The owner has deferred **reviewer handover and succession until last**. This overrides
+the implementation order of the numbered phases below, while preserving their domain
+requirements. Group lead transfer is separate and is not deferred with reviewer handover.
+
+The implementation sequence is approved-project changes, group management, evidence coverage/deadlines,
+final deliverables and final approval, then the live printable portfolio. Finish the
+remaining live UI, history/retry handling, uploads/email and release preparation before
+the reviewer-handover feature. Final release checks still follow feature completion.
+
+The [remaining-work checklist (#19)](https://github.com/Bash-Abdul/Trace/issues/19)
+links the feature issues and existing follow-ups. Blocking feedback gates final approval
+requests, not milestone approval. SSE is optional for MVP because polling already works.
+Native mobile is a separate future phase; responsive web remains in scope.
 
 ### Phase 0 — Planning baseline (complete)
 

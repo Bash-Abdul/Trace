@@ -12,12 +12,14 @@ export function StructureEditor({
   onChange,
   max,
   disabled = false,
+  allowStructure = true,
 }: {
   label: 'Milestone' | 'Deliverable';
   items: StructureItem[];
   onChange: (items: StructureItem[]) => void;
   max: number;
   disabled?: boolean;
+  allowStructure?: boolean;
 }) {
   function move(index: number, offset: number) {
     const next = [...items];
@@ -47,6 +49,7 @@ export function StructureEditor({
           <label>
             <input
               type="checkbox"
+              disabled={!allowStructure}
               checked={item.required}
               onChange={(event) =>
                 onChange(
@@ -58,47 +61,51 @@ export function StructureEditor({
             />
             {label} {index + 1} required
           </label>
-          <div className="inline-actions">
-            <button
-              type="button"
-              className="button secondary small"
-              disabled={index === 0}
-              aria-label={`Move ${label.toLowerCase()} ${index + 1} up`}
-              onClick={() => move(index, -1)}
-            >
-              Up
-            </button>
-            <button
-              type="button"
-              className="button secondary small"
-              disabled={index === items.length - 1}
-              aria-label={`Move ${label.toLowerCase()} ${index + 1} down`}
-              onClick={() => move(index, 1)}
-            >
-              Down
-            </button>
-            <button
-              type="button"
-              className="button secondary small"
-              disabled={items.length === 1}
-              aria-label={`Remove ${label.toLowerCase()} ${index + 1}`}
-              onClick={() => onChange(items.filter((_, position) => position !== index))}
-            >
-              Remove
-            </button>
-          </div>
+          {allowStructure && (
+            <div className="inline-actions">
+              <button
+                type="button"
+                className="button secondary small"
+                disabled={index === 0}
+                aria-label={`Move ${label.toLowerCase()} ${index + 1} up`}
+                onClick={() => move(index, -1)}
+              >
+                Up
+              </button>
+              <button
+                type="button"
+                className="button secondary small"
+                disabled={index === items.length - 1}
+                aria-label={`Move ${label.toLowerCase()} ${index + 1} down`}
+                onClick={() => move(index, 1)}
+              >
+                Down
+              </button>
+              <button
+                type="button"
+                className="button secondary small"
+                disabled={items.length === 1}
+                aria-label={`Remove ${label.toLowerCase()} ${index + 1}`}
+                onClick={() => onChange(items.filter((_, position) => position !== index))}
+              >
+                Remove
+              </button>
+            </div>
+          )}
         </div>
       ))}
-      <button
-        type="button"
-        className="button secondary small"
-        disabled={items.length >= max}
-        onClick={() =>
-          onChange([...items, { key: crypto.randomUUID(), title: '', required: true }])
-        }
-      >
-        Add {label.toLowerCase()}
-      </button>
+      {allowStructure && (
+        <button
+          type="button"
+          className="button secondary small"
+          disabled={items.length >= max}
+          onClick={() =>
+            onChange([...items, { key: crypto.randomUUID(), title: '', required: true }])
+          }
+        >
+          Add {label.toLowerCase()}
+        </button>
+      )}
     </fieldset>
   );
 }

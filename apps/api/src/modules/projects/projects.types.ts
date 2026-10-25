@@ -126,6 +126,7 @@ export interface ProjectEvent {
 
 export interface ProjectDetail extends MemberProject, ProjectStructure {
   progress: ProjectProgress;
+  archived_milestones: StructureItem[];
   members: ProjectMember[];
   invitations: InvitationRecord[];
   proposals: ProposalRecord[];
