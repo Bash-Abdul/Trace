@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
 const roleSchema = z.enum(['LEAD_AUTHOR', 'AUTHOR', 'MAIN_REVIEWER', 'DORMANT_REVIEWER']);
-const item = z.object({ id: z.string(), title: z.string(), required: z.boolean() });
+const requirement = z.object({ id: z.string(), title: z.string(), required: z.boolean() });
+const item = requirement.extend({
+  objectiveIds: z.array(z.string()).optional(),
+  expectedEvidence: z.array(requirement).optional(),
+});
 const progressSchema = z.object({
   milestones: z.array(
     z.object({
@@ -37,12 +41,25 @@ export const structureSchema = z.object({
   title: z.string(),
   description: z.string(),
   objectives: z.array(z.string()),
+  objectiveIds: z.array(z.string()).optional(),
   milestones: z.array(item),
   deliverables: z.array(item),
 });
 export const detailSchema = summarySchema.extend({
   archived_milestones: z.array(item).default([]),
+  former_members: z
+    .array(
+      z.object({
+        user_id: z.string(),
+        email: z.string(),
+        role: roleSchema,
+        joined_at: z.string(),
+        removed_at: z.string(),
+      }),
+    )
+    .default([]),
   objectives: z.array(z.string()),
+  objectiveIds: z.array(z.string()).optional(),
   milestones: z.array(item),
   deliverables: z.array(item),
   members: z.array(z.object({ user_id: z.string(), email: z.string(), role: roleSchema })),

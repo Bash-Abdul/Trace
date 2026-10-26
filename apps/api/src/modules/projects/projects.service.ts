@@ -1,3 +1,8 @@
+import {
+  resolveObjectives,
+  resolveMilestoneCoverage,
+} from '../evidence-coverage/coverage.service.js';
+import { isFormerAuthor } from '../members/members.repository.js';
 import { enqueue } from '../notifications/notifications.repository.js';
 import type { PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -100,11 +105,25 @@ export async function createProject(
   }
   const id = await repository.insertProject(client, userId, input, template?.version ?? 1);
   await repository.addMember(client, id, userId, input.creatorRole);
+  if (
+    input.objectiveIds?.some(Boolean) ||
+    input.milestones?.some((m) => m.objectiveIds?.length || m.expectedEvidence?.some((r) => r.id))
+  )
+    throw badRequest(
+      'Create the project first, then link its objectives and expected evidence in the brief.',
+    );
   await repository.saveStructure(client, id, {
     ...input,
+    objectiveIds: input.objectives.map(() => randomUUID()),
     milestones: (
       input.milestones ?? template!.milestones.map((title) => ({ title, required: true }))
-    ).map((item) => ({ ...item, id: randomUUID() })),
+    ).map((item) => ({
+      ...item,
+      id: randomUUID(),
+      expectedEvidence: ('expectedEvidence' in item ? (item.expectedEvidence ?? []) : []).map(
+        (r) => ({ ...r, id: randomUUID() }),
+      ),
+    })),
     deliverables: (
       input.deliverables ?? [{ title: 'Final outcome & reflection', required: true }]
     ).map((item) => ({ ...item, id: randomUUID() })),
@@ -136,10 +155,18 @@ export async function updateDraft(
     ...(await repository.structure(client, id)),
   };
 
+  const objectiveIds = resolveObjectives(input, before);
   const structure = {
     ...input,
-    milestones: resolveItems(input.milestones, before.milestones),
-    deliverables: resolveItems(input.deliverables, before.deliverables),
+    objectiveIds,
+    milestones: resolveMilestoneCoverage(
+      resolveItems(input.milestones, before.milestones),
+      before,
+      objectiveIds,
+    ),
+    deliverables: resolveItems(input.deliverables, before.deliverables).map(
+      ({ id, title, required }) => ({ id, title, required }),
+    ),
   };
 
   await repository.updateBrief(client, id, input);
@@ -158,6 +185,8 @@ export async function invite(
 ): Promise<InvitationResponse> {
   const project = await requireMemberProjectForUpdate(client, id, userId);
   requireInvitationPermission(project, input.role);
+  if (input.role === 'MAIN_REVIEWER' && (await isFormerAuthor(client, id, input.email)))
+    throw forbidden('A former Author cannot review their own project.');
   if (await repository.memberByEmail(client, id, input.email)) {
     throw conflict('That person is already a project member.');
   }
@@ -231,6 +260,8 @@ export async function acceptInvitation(
     throw forbidden('The inviter no longer has access.');
   }
   requireInvitationPermission({ ...project, role: inviterRole }, invitation.role);
+  if (invitation.role === 'MAIN_REVIEWER' && (await isFormerAuthor(client, id, account.email)))
+    throw forbidden('A former Author cannot review their own project.');
   if (await repository.memberRole(client, id, userId)) {
     throw conflict('You are already a member of this project.');
   }
@@ -348,7 +379,10 @@ export async function decideProposal(
 }
 
 // Explicit IDs are authoritative. An omitted ID alongside explicit IDs means a new item.
-function resolveItems(input: Draft['milestones'], existing: StructureItem[]): StructureItem[] {
+function resolveItems(
+  input: Draft['milestones'],
+  existing: StructureItem[],
+): (Draft['milestones'][number] & { id: string })[] {
   const existingIds = new Set(existing.map((item) => item.id));
   const suppliedIds = new Set<string>();
   for (const item of input) {
@@ -374,7 +408,7 @@ function resolveItems(input: Draft['milestones'], existing: StructureItem[]): St
 function resolveLegacyItems(
   input: Draft['milestones'],
   existing: StructureItem[],
-): StructureItem[] {
+): (Draft['milestones'][number] & { id: string })[] {
   const sameTitleOrder =
     input.length === existing.length &&
     input.every((item, index) => item.title === existing[index]?.title);

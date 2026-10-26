@@ -75,9 +75,12 @@ export interface StructureItem {
   id: string;
   title: string;
   required: boolean;
+  objectiveIds?: string[] | undefined;
+  expectedEvidence?: StructureItem[] | undefined;
 }
 
 export interface ProjectStructure {
+  objectiveIds?: string[] | undefined;
   objectives: string[];
   milestones: StructureItem[];
   deliverables: StructureItem[];
@@ -127,6 +130,7 @@ export interface ProjectEvent {
 export interface ProjectDetail extends MemberProject, ProjectStructure {
   progress: ProjectProgress;
   archived_milestones: StructureItem[];
+  former_members: (ProjectMember & { joined_at: string; removed_at: string })[];
   members: ProjectMember[];
   invitations: InvitationRecord[];
   proposals: ProposalRecord[];
@@ -153,7 +157,11 @@ export interface InvitationResponse extends CreatedInvitation {
   invitationUrl: string;
 }
 
-export type SavedStructure = Omit<Draft, 'version' | 'milestones' | 'deliverables'> & {
+export type SavedStructure = Omit<
+  Draft,
+  'version' | 'milestones' | 'deliverables' | 'objectiveIds'
+> & {
+  objectiveIds: string[];
   milestones: StructureItem[];
   deliverables: StructureItem[];
 };

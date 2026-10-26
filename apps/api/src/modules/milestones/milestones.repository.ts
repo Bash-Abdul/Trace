@@ -1,3 +1,4 @@
+import { saveMappings } from '../evidence-coverage/coverage.repository.js';
 import type { PoolClient } from 'pg';
 import type { Database } from '../../config/db.js';
 import type {
@@ -37,8 +38,10 @@ export async function state(
 
 export async function evidence(database: Database, milestoneId: string): Promise<Evidence[]> {
   const result = await database.query<Evidence>(
-    `SELECT id, title, kind, content, created_by, updated_by
-     FROM milestone_draft_evidence WHERE milestone_id = $1 ORDER BY position`,
+    `SELECT e.id, title, kind, content, created_by, updated_by,
+       ARRAY(SELECT objective_id FROM evidence_objectives o WHERE o.evidence_id = e.id ORDER BY objective_id) AS "objectiveIds",
+       ARRAY(SELECT expectation_id FROM evidence_expectations r WHERE r.evidence_id = e.id ORDER BY expectation_id) AS "expectationIds"
+     FROM milestone_draft_evidence e WHERE milestone_id = $1 ORDER BY position`,
     [milestoneId],
   );
   return result.rows;
@@ -71,6 +74,7 @@ export async function saveDraft(
        content = EXCLUDED.content, updated_by = EXCLUDED.updated_by`,
     [milestoneId, JSON.stringify(items)],
   );
+  await saveMappings(client, milestoneId, items);
 }
 
 export async function transition(
@@ -89,8 +93,9 @@ export async function transition(
 
 export async function versions(database: Database, milestoneId: string): Promise<Submission[]> {
   const result = await database.query<Submission>(
-    `SELECT id, number, evidence, submitted_by, submitted_at, decision, feedback, decided_by, decided_at
-     FROM milestone_submission_versions WHERE milestone_id = $1 ORDER BY number DESC`,
+    `SELECT v.id, number, evidence, submitted_by, submitted_at, decision, feedback, decided_by, decided_at, c.plan AS coverage
+     FROM milestone_submission_versions v LEFT JOIN milestone_submission_coverage c ON c.submission_id = v.id
+     WHERE milestone_id = $1 ORDER BY number DESC`,
     [milestoneId],
   );
   return result.rows;

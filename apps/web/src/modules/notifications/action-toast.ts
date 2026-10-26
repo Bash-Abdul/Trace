@@ -10,6 +10,10 @@ export function announceAction(message: string, error = false) {
   if (!error) window.dispatchEvent(new Event(projectChangedEvent));
 }
 export function actionMessage(path: string, method: string) {
+  if (path.includes('/members/'))
+    return path.endsWith('/transfer-lead')
+      ? 'Group leadership transferred.'
+      : 'Author removed; contributions preserved.';
   if (path.includes('/invitations'))
     return method === 'DELETE'
       ? 'Invitation cancelled.'

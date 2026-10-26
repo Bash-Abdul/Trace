@@ -21,6 +21,10 @@ export type Notification = Inbox['items'][number];
 export function notificationLabel(item: Notification) {
   const decision = item.details.decision;
   switch (item.action) {
+    case 'GROUP_AUTHOR_REMOVED':
+      return 'Group Author removed';
+    case 'GROUP_LEAD_TRANSFERRED':
+      return 'Group lead Author changed';
     case 'PROJECT_MINOR_EDIT':
       return 'Project wording updated';
     case 'PROJECT_CHANGE_SUBMITTED':
@@ -63,6 +67,8 @@ export function notificationLabel(item: Notification) {
   }
 }
 export function notificationDestination(item: Notification) {
+  if (item.action === 'GROUP_AUTHOR_REMOVED' || item.action === 'GROUP_LEAD_TRANSFERRED')
+    return `/projects/${item.project_id}?tab=team`;
   if (item.action.startsWith('PROJECT_CHANGE_') || item.action === 'PROJECT_MINOR_EDIT')
     return `/projects/${item.project_id}?tab=changes`;
   return item.milestone_id

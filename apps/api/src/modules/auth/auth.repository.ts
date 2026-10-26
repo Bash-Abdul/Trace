@@ -13,11 +13,14 @@ export async function lockSessionAccount(client: PoolClient, tokenHash: string):
   if (!owner) {
     return false;
   }
+  // Serialize account mutations and conflict with reset/revocation locks, while
+  // allowing foreign-key reads of user IDs by another participant's transaction.
+  // FOR UPDATE can deadlock when that user is already waiting for the project lock.
   const locked = await client.query<{ id: string }>(
     `SELECT id
     FROM users
     WHERE id = $1
-    FOR UPDATE`,
+    FOR NO KEY UPDATE`,
     [owner.user_id],
   );
   return locked.rowCount === 1;

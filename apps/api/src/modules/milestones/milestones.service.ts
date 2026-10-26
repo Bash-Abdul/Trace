@@ -1,3 +1,5 @@
+import { snapshot as snapshotCoverage } from '../evidence-coverage/coverage.repository.js';
+import { isDeepStrictEqual } from 'node:util';
 import { enqueue } from '../notifications/notifications.repository.js';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
@@ -137,6 +139,8 @@ export async function saveDraft(
     throw conflict('This milestone is not editable.');
   }
   const existing = await repository.evidence(client, params.milestoneId);
+  const structure = await projects.structure(client, params.projectId);
+  const plan = structure.milestones.find((m) => m.id === params.milestoneId)!;
   const used = new Set<string>();
   const evidence = input.evidence.map((item) => {
     const previous = existing.find((entry) => entry.id === item.id);
@@ -144,14 +148,27 @@ export async function saveDraft(
       throw badRequest('Evidence IDs must belong to this draft and appear only once.');
     }
     const id = item.id ?? randomUUID();
+    const objectiveIds = item.objectiveIds ?? previous?.objectiveIds ?? [];
+    const expectationIds = item.expectationIds ?? previous?.expectationIds ?? [];
+    if (
+      new Set(objectiveIds).size !== objectiveIds.length ||
+      objectiveIds.some((id) => !plan.objectiveIds?.includes(id)) ||
+      new Set(expectationIds).size !== expectationIds.length ||
+      expectationIds.some((id) => !plan.expectedEvidence?.some((r) => r.id === id))
+    )
+      throw badRequest('Evidence mappings must belong to this milestone and appear only once.');
     used.add(id);
     const unchanged =
       previous &&
       previous.title === item.title &&
       previous.kind === item.kind &&
-      previous.content === item.content;
+      previous.content === item.content &&
+      isDeepStrictEqual(previous.objectiveIds, objectiveIds) &&
+      isDeepStrictEqual(previous.expectationIds, expectationIds);
     return {
       ...item,
+      objectiveIds,
+      expectationIds,
       id,
       created_by: previous?.created_by ?? userId,
       updated_by: unchanged ? previous.updated_by : userId,
@@ -186,7 +203,26 @@ export async function submit(
   if (!evidence.length) {
     throw new AppError(422, 'EVIDENCE_REQUIRED', 'Add evidence before submitting.');
   }
-  const submissionId = await repository.submit(client, params.milestoneId, evidence, userId);
+  const structure = await projects.structure(client, params.projectId);
+  const plan = structure.milestones.find((m) => m.id === params.milestoneId)!;
+  const snapshot = evidence.map((item) => ({
+    ...item,
+    objectiveMappings: (item.objectiveIds ?? []).map((id) => ({
+      id,
+      title: structure.objectives[structure.objectiveIds!.indexOf(id)]!,
+    })),
+    expectationMappings: (plan.expectedEvidence ?? []).filter((r) =>
+      item.expectationIds?.includes(r.id),
+    ),
+  }));
+  const submissionId = await repository.submit(client, params.milestoneId, snapshot, userId);
+  await snapshotCoverage(client, submissionId, {
+    objectives: (plan.objectiveIds ?? []).map((id) => ({
+      id,
+      title: structure.objectives[structure.objectiveIds!.indexOf(id)]!,
+    })),
+    expectedEvidence: plan.expectedEvidence ?? [],
+  });
   await transition(client, params, version, 'AWAITING_REVIEW');
   await record(client, params, userId, 'MILESTONE_SUBMITTED', ['MAIN_REVIEWER'], { submissionId });
   return detail(client, params);

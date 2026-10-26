@@ -22,14 +22,16 @@ export function ProjectDraftEditor({
   const [deliverables, setDeliverables] = useState<StructureItem[]>(() =>
     project.deliverables.map((item) => ({ ...item, key: item.id })),
   );
+  const [objectives, setObjectives] = useState(() =>
+    project.objectives.map((title, index) => ({
+      key: crypto.randomUUID(),
+      id: project.objectiveIds?.[index] ?? null,
+      title,
+    })),
+  );
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const lines = (name: string) =>
-      String(data.get(name))
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
     void save({
       version: project.version,
       ...(changeMode ? { reason: data.get('reason') } : {}),
@@ -38,7 +40,8 @@ export function ProjectDraftEditor({
         : {}),
       title: data.get('title'),
       description: data.get('description'),
-      objectives: lines('objectives'),
+      objectives: objectives.map((o) => o.title),
+      objectiveIds: objectives.map((o) => o.id),
       milestones: structurePayload(milestones),
       deliverables: structurePayload(deliverables),
     });
@@ -79,18 +82,80 @@ export function ProjectDraftEditor({
           rows={4}
         />
       </label>
-      <label>
-        Objectives — one per line
-        <textarea
-          name="objectives"
-          defaultValue={project.objectives.join('\n')}
-          required
-          maxLength={10000}
-          rows={3}
-        />
-      </label>
+      <fieldset disabled={busy} className="structure-editor">
+        <legend>Objectives</legend>
+        {objectives.map((objective, index) => (
+          <div key={objective.key} className="evidence-item">
+            <label>
+              Objective {index + 1}
+              <input
+                required
+                maxLength={500}
+                value={objective.title}
+                onChange={(event) =>
+                  setObjectives((current) =>
+                    current.map((o) =>
+                      o.key === objective.key ? { ...o, title: event.target.value } : o,
+                    ),
+                  )
+                }
+              />
+            </label>
+            {changeMode !== 'minor' && (
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="button secondary small"
+                  disabled={index === 0}
+                  onClick={() =>
+                    setObjectives((current) => {
+                      const next = [...current];
+                      [next[index - 1], next[index]] = [next[index]!, next[index - 1]!];
+                      return next;
+                    })
+                  }
+                >
+                  Move objective {index + 1} up
+                </button>
+                <button
+                  type="button"
+                  className="button secondary small"
+                  disabled={objectives.length === 1}
+                  onClick={() => {
+                    setObjectives((current) => current.filter((o) => o.key !== objective.key));
+                    setMilestones((current) =>
+                      current.map((m) => ({
+                        ...m,
+                        objectiveIds: m.objectiveIds?.filter((id) => id !== objective.id),
+                      })),
+                    );
+                  }}
+                >
+                  Remove objective {index + 1}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+        {changeMode !== 'minor' && (
+          <button
+            type="button"
+            className="button secondary small"
+            disabled={objectives.length >= 20}
+            onClick={() =>
+              setObjectives((current) => [
+                ...current,
+                { key: crypto.randomUUID(), id: null, title: '' },
+              ])
+            }
+          >
+            Add objective
+          </button>
+        )}
+      </fieldset>
       <StructureEditor
         label="Milestone"
+        objectives={objectives.flatMap((o) => (o.id ? [{ id: o.id, title: o.title }] : []))}
         items={milestones}
         onChange={setMilestones}
         max={30}

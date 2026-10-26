@@ -654,6 +654,7 @@ describe('refactored project transaction and persistence behavior', () => {
           title: p.title,
           description: p.description,
           ...structure,
+          objectiveIds: structure.objectives.map(() => randomUUID()),
         });
       });
     };

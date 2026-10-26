@@ -161,3 +161,15 @@
     grid-template-columns: 1fr;
   }
 }
+
+.evidence-item label.coverage-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+.coverage-choice input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 3px 0 0;
+}

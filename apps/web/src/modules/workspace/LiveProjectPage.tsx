@@ -1,3 +1,4 @@
+import { ProjectCoverage } from '../evidence-coverage/ProjectCoverage';
 import { ProjectChanges } from '../changes/ProjectChanges';
 import { ArrowLeft, ArrowUpRight, CalendarDays } from 'lucide-react';
 import { Badge } from '../../shared/ui/Primitives';
@@ -307,6 +308,19 @@ function ProjectContent({ id }: { id: string }) {
                         <li key={m.id}>
                           {m.title}
                           {m.required ? ' (required)' : ' (optional)'}
+                          {m.objectiveIds?.map((id) => (
+                            <p key={id}>
+                              Supports:{' '}
+                              {proposal.structure.objectives[
+                                proposal.structure.objectiveIds?.indexOf(id) ?? -1
+                              ] ?? 'Objective'}
+                            </p>
+                          ))}
+                          {m.expectedEvidence?.map((r) => (
+                            <p key={r.id}>
+                              Expected evidence: {r.title} · {r.required ? 'Required' : 'Optional'}
+                            </p>
+                          ))}
                         </li>
                       ))}
                     </ol>
@@ -356,6 +370,7 @@ function ProjectContent({ id }: { id: string }) {
                   )}
               </section>
             )}
+            <ProjectCoverage projectId={project.id} version={project.version} />
           </LiveProjectOverview>
         ) : null}
         {tab === 'changes' && <ProjectChanges project={project} api={api} run={run} busy={busy} />}

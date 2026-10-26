@@ -1,3 +1,4 @@
+import { ProjectCoverage } from '../evidence-coverage/ProjectCoverage';
 import { HelpHint } from '../../shared/ui/HelpHint';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
@@ -38,6 +39,16 @@ function EvidenceList({ items, name }: { items: Evidence[]; name: (id: string) =
           ) : (
             <p className="evidence-text">{item.content}</p>
           )}
+          {item.objectiveMappings?.map((o) => (
+            <p key={o.id} className="muted">
+              Supports objective: {o.title}
+            </p>
+          ))}
+          {item.expectationMappings?.map((r) => (
+            <p key={r.id} className="muted">
+              Addresses expected evidence: {r.title} · {r.required ? 'Required' : 'Optional'}
+            </p>
+          ))}
           <small>
             Contributed by {name(item.created_by)} · last edited by {name(item.updated_by)}
           </small>
@@ -94,7 +105,9 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
     }
   };
   const name = (id: string) =>
-    project?.members.find((member) => member.user_id === id)?.email ?? 'Former participant';
+    [...(project?.members ?? []), ...(project?.former_members ?? [])].find(
+      (member) => member.user_id === id,
+    )?.email ?? 'Former participant';
   function review(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail?.submissions[0]) return;
@@ -174,12 +187,28 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
               </p>
             </div>
           </div>
+          {!detail.milestone.archived_at && (
+            <ProjectCoverage
+              projectId={projectId}
+              milestoneId={milestoneId}
+              version={detail.version}
+            />
+          )}
           {project.status === 'ACTIVE' &&
             !detail.milestone.archived_at &&
             ['LEAD_AUTHOR', 'AUTHOR'].includes(project.role) &&
             ['NOT_STARTED', 'DRAFT', 'REVISION_REQUESTED'].includes(detail.state) && (
               <EvidenceEditor
                 key={detail.version}
+                objectives={(
+                  project.milestones.find((m) => m.id === milestoneId)?.objectiveIds ?? []
+                ).map((id) => ({
+                  id,
+                  title: project.objectives[project.objectiveIds?.indexOf(id) ?? -1] ?? 'Objective',
+                }))}
+                expectations={
+                  project.milestones.find((m) => m.id === milestoneId)?.expectedEvidence ?? []
+                }
                 evidence={detail.evidence}
                 busy={busy}
                 onDirty={() => setDraftDirty(true)}
@@ -228,6 +257,30 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                   Submitted by {name(submission.submitted_by)} ·{' '}
                   {new Date(submission.submitted_at).toLocaleString()}
                 </p>
+                {submission.coverage && (
+                  <details>
+                    <summary>Coverage in this submitted version</summary>
+                    <p className="muted">
+                      The expectations and links recorded when this version was submitted.
+                    </p>
+                    {submission.coverage.objectives.map((o) => (
+                      <p key={o.id}>
+                        Objective: {o.title} ·{' '}
+                        {submission.evidence.some((e) => e.objectiveIds?.includes(o.id))
+                          ? 'Evidence linked'
+                          : 'No evidence linked'}
+                      </p>
+                    ))}
+                    {submission.coverage.expectedEvidence.map((r) => (
+                      <p key={r.id}>
+                        {r.title} · {r.required ? 'Required' : 'Optional'} ·{' '}
+                        {submission.evidence.some((e) => e.expectationIds?.includes(r.id))
+                          ? 'Evidence linked'
+                          : 'Missing'}
+                      </p>
+                    ))}
+                  </details>
+                )}
                 <EvidenceList items={submission.evidence} name={name} />
                 {submission.feedback && (
                   <p>
@@ -331,6 +384,8 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
             run={run}
             name={name}
             participantRole={(id) => {
+              if (project.former_members.some((member) => member.user_id === id))
+                return 'Former Author';
               const role = project.members.find((member) => member.user_id === id)?.role;
               if (role === 'LEAD_AUTHOR' || role === 'AUTHOR') return 'Author';
               if (role === 'MAIN_REVIEWER' || role === 'DORMANT_REVIEWER') return 'Reviewer';

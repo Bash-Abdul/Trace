@@ -29,6 +29,16 @@ function Structure({
         {value.milestones.map((m) => (
           <li key={m.id}>
             {m.title} · {m.required ? 'Required' : 'Optional'}
+            {m.objectiveIds?.map((id) => (
+              <p key={id}>
+                Supports: {value.objectives[value.objectiveIds?.indexOf(id) ?? -1] ?? 'Objective'}
+              </p>
+            ))}
+            {m.expectedEvidence?.map((r) => (
+              <p key={r.id}>
+                Expected evidence: {r.title} · {r.required ? 'Required' : 'Optional'}
+              </p>
+            ))}
           </li>
         ))}
       </ol>

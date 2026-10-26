@@ -44,6 +44,9 @@ const queueItem = {
   action: 'Review submission',
 };
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/projects/*/coverage', (route) =>
+    route.fulfill({ json: { objectives: [], milestones: [], requiredOmissions: [] } }),
+  );
   await page.route('**/api/v1/projects/notifications*', (route) =>
     route.fulfill({ json: { items: [], unread_count: 0, next_cursor: null } }),
   );
@@ -355,4 +358,133 @@ test('externally approved projects explain milestone review instead of showing p
     'aria-selected',
     'true',
   );
+});
+
+test('group team changes require confirmation and retain input on a stale request', async ({
+  page,
+}) => {
+  await authenticate(page);
+  const memberEmail = 'a-long-contributing-author-address-for-the-mobile-layout@example.com';
+  const project = {
+    ...projects[0],
+    objectives: ['Explore'],
+    milestones: [],
+    deliverables: [],
+    members: [
+      { user_id: 'author', email: session.user.email, role: 'LEAD_AUTHOR' },
+      { user_id: 'contributor', email: memberEmail, role: 'AUTHOR' },
+    ],
+    invitations: [],
+    proposals: [],
+    events: [],
+  };
+  let mutations = 0;
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ json: { projects: [project] } }),
+  );
+  await page.route('**/api/v1/projects/garden', (route) => route.fulfill({ json: project }));
+  await page.route('**/api/v1/projects/garden/members/contributor/remove', (route) => {
+    mutations++;
+    return route.fulfill({
+      status: 409,
+      json: { error: { message: 'The team changed. Reload before continuing.' } },
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/projects/garden?tab=team');
+  await page.getByRole('button', { name: 'Remove Author', exact: true }).click();
+  expect(mutations).toBe(0);
+  const dialog = page.getByRole('dialog', { name: 'Remove group Author?' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Reason for this team change').fill('Agreed a break from the group');
+  await page.screenshot({
+    path: '/tmp/trace-team-confirmation-mobile.png',
+    fullPage: true,
+    animations: 'disabled',
+  });
+  expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await dialog.getByRole('button', { name: 'Confirm removal', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('The team changed');
+  await expect(dialog.getByLabel('Reason for this team change')).toHaveValue(
+    'Agreed a break from the group',
+  );
+  expect(mutations).toBe(1);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test('coverage preserves objective IDs when editing and explains missing work on mobile', async ({
+  page,
+}) => {
+  await authenticate(page);
+  const project = {
+    ...projects[0],
+    status: 'SETUP',
+    objectives: ['Understand needs', 'Evaluate the design'],
+    objectiveIds: ['objective-a', 'objective-b'],
+    milestones: [
+      {
+        id: 'research',
+        title: 'Research',
+        required: true,
+        objectiveIds: ['objective-a'],
+        expectedEvidence: [{ id: 'notes', title: 'Interview notes', required: true }],
+      },
+    ],
+    deliverables: [{ id: 'report', title: 'Report', required: true }],
+    members: [{ user_id: 'author', email: 'author@example.com', role: 'LEAD_AUTHOR' }],
+    proposals: [],
+    invitations: [],
+    events: [],
+  };
+  let saved: {
+    objectiveIds: string[];
+    objectives: string[];
+    milestones: { objectiveIds: string[]; expectedEvidence: { id: string }[] }[];
+  } | null = null;
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({ json: { projects: [project] } }),
+  );
+  await page.route('**/api/v1/projects/garden', (route) => {
+    if (route.request().method() === 'PATCH') saved = route.request().postDataJSON();
+    return route.fulfill({ json: project });
+  });
+  await page.route('**/api/v1/projects/garden/coverage', (route) =>
+    route.fulfill({
+      json: {
+        objectives: [{ id: 'objective-a', title: 'Understand needs', state: 'MISSING' }],
+        milestones: [
+          {
+            ...project.milestones[0],
+            objectives: [],
+            expectedEvidence: [
+              { id: 'notes', title: 'Interview notes', required: true, state: 'MISSING' },
+            ],
+          },
+        ],
+        requiredOmissions: [
+          { milestoneId: 'research', expectationId: 'notes', title: 'Interview notes' },
+        ],
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/projects/garden');
+  await expect(page.getByRole('heading', { name: 'Evidence coverage' })).toBeVisible();
+  await expect(page.getByText('Missing', { exact: true })).toHaveCount(2);
+  await page.getByRole('button', { name: 'Edit brief' }).click();
+  await page.getByRole('button', { name: 'Move objective 2 up' }).click();
+  await page.getByLabel('Objective 2', { exact: true }).fill('Understand the participants');
+  await page.getByText('Objectives and expected evidence', { exact: true }).click();
+  await expect(page.getByLabel('Supports: Understand the participants')).toBeChecked();
+  await page.screenshot({ path: '/tmp/trace-coverage-editor-mobile.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Save brief' }).click();
+  await expect.poll(() => saved).not.toBeNull();
+  expect(saved).toMatchObject({
+    objectiveIds: ['objective-b', 'objective-a'],
+    objectives: ['Evaluate the design', 'Understand the participants'],
+    milestones: [{ objectiveIds: ['objective-a'], expectedEvidence: [{ id: 'notes' }] }],
+  });
 });

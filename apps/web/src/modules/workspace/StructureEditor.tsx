@@ -1,9 +1,26 @@
-export type StructureItem = { key: string; id?: string; title: string; required: boolean };
+export type StructureItem = {
+  key: string;
+  id?: string;
+  title: string;
+  required: boolean;
+  objectiveIds?: string[] | undefined;
+  expectedEvidence?: { id?: string; key?: string; title: string; required: boolean }[] | undefined;
+};
 export function structurePayload(items: StructureItem[]) {
-  return items.map(({ id, title, required }) => ({
+  return items.map(({ id, title, required, objectiveIds, expectedEvidence }) => ({
     ...(id ? { id } : {}),
     title: title.trim(),
     required,
+    ...(objectiveIds ? { objectiveIds } : {}),
+    ...(expectedEvidence
+      ? {
+          expectedEvidence: expectedEvidence.map(({ id, title, required }) => ({
+            ...(id ? { id } : {}),
+            title,
+            required,
+          })),
+        }
+      : {}),
   }));
 }
 export function StructureEditor({
@@ -13,6 +30,7 @@ export function StructureEditor({
   max,
   disabled = false,
   allowStructure = true,
+  objectives,
 }: {
   label: 'Milestone' | 'Deliverable';
   items: StructureItem[];
@@ -20,6 +38,7 @@ export function StructureEditor({
   max: number;
   disabled?: boolean;
   allowStructure?: boolean;
+  objectives?: { id: string; title: string }[];
 }) {
   function move(index: number, offset: number) {
     const next = [...items];
@@ -46,7 +65,7 @@ export function StructureEditor({
               }
             />
           </label>
-          <label>
+          <label className="coverage-choice">
             <input
               type="checkbox"
               disabled={!allowStructure}
@@ -61,6 +80,135 @@ export function StructureEditor({
             />
             {label} {index + 1} required
           </label>
+          {label === 'Milestone' && objectives && (
+            <details>
+              <summary>Objectives and expected evidence</summary>
+              <p className="muted">
+                Choose the objectives this milestone supports, then describe the evidence expected.
+                Authors link their evidence to these when preparing a submission.
+              </p>
+              {objectives.length === 0 && <p>Save the brief first to link new objectives.</p>}
+              {objectives.map((objective) => (
+                <label className="coverage-choice" key={objective.id}>
+                  <input
+                    type="checkbox"
+                    disabled={!allowStructure}
+                    checked={item.objectiveIds?.includes(objective.id) ?? false}
+                    onChange={(event) =>
+                      onChange(
+                        items.map((entry) =>
+                          entry.key === item.key
+                            ? {
+                                ...entry,
+                                objectiveIds: event.target.checked
+                                  ? [...(entry.objectiveIds ?? []), objective.id]
+                                  : (entry.objectiveIds ?? []).filter((id) => id !== objective.id),
+                              }
+                            : entry,
+                        ),
+                      )
+                    }
+                  />
+                  Supports: {objective.title}
+                </label>
+              ))}
+              {(item.expectedEvidence ?? []).map((requirement, rIndex) => (
+                <div key={requirement.id ?? requirement.key} className="evidence-item">
+                  <label>
+                    Expected evidence {rIndex + 1}
+                    <input
+                      required
+                      maxLength={120}
+                      disabled={!allowStructure}
+                      value={requirement.title}
+                      onChange={(event) =>
+                        onChange(
+                          items.map((entry) =>
+                            entry.key === item.key
+                              ? {
+                                  ...entry,
+                                  expectedEvidence: entry.expectedEvidence?.map((r, i) =>
+                                    i === rIndex ? { ...r, title: event.target.value } : r,
+                                  ),
+                                }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="coverage-choice">
+                    <input
+                      type="checkbox"
+                      disabled={!allowStructure}
+                      checked={requirement.required}
+                      onChange={(event) =>
+                        onChange(
+                          items.map((entry) =>
+                            entry.key === item.key
+                              ? {
+                                  ...entry,
+                                  expectedEvidence: entry.expectedEvidence?.map((r, i) =>
+                                    i === rIndex ? { ...r, required: event.target.checked } : r,
+                                  ),
+                                }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                    Required evidence
+                  </label>
+                  {allowStructure && (
+                    <button
+                      type="button"
+                      className="button secondary small"
+                      onClick={() =>
+                        onChange(
+                          items.map((entry) =>
+                            entry.key === item.key
+                              ? {
+                                  ...entry,
+                                  expectedEvidence: entry.expectedEvidence?.filter(
+                                    (_, i) => i !== rIndex,
+                                  ),
+                                }
+                              : entry,
+                          ),
+                        )
+                      }
+                    >
+                      Remove expected evidence {rIndex + 1}
+                    </button>
+                  )}
+                </div>
+              ))}
+              {allowStructure && (
+                <button
+                  type="button"
+                  className="button secondary small"
+                  disabled={(item.expectedEvidence?.length ?? 0) >= 30}
+                  onClick={() =>
+                    onChange(
+                      items.map((entry) =>
+                        entry.key === item.key
+                          ? {
+                              ...entry,
+                              expectedEvidence: [
+                                ...(entry.expectedEvidence ?? []),
+                                { key: crypto.randomUUID(), title: '', required: true },
+                              ],
+                            }
+                          : entry,
+                      ),
+                    )
+                  }
+                >
+                  Add expected evidence
+                </button>
+              )}
+            </details>
+          )}
           {allowStructure && (
             <div className="inline-actions">
               <button

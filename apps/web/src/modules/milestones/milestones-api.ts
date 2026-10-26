@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
 export const evidenceSchema = z.object({
+  objectiveIds: z.array(z.string()).optional(),
+  expectationIds: z.array(z.string()).optional(),
+  objectiveMappings: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
+  expectationMappings: z
+    .array(z.object({ id: z.string(), title: z.string(), required: z.boolean() }))
+    .optional(),
   id: z.string(),
   title: z.string(),
   kind: z.enum(['TEXT', 'LINK']),
@@ -22,6 +28,15 @@ export const milestoneDetailSchema = z.object({
     z.object({
       id: z.string(),
       number: z.number(),
+      coverage: z
+        .object({
+          objectives: z.array(z.object({ id: z.string(), title: z.string() })),
+          expectedEvidence: z.array(
+            z.object({ id: z.string(), title: z.string(), required: z.boolean() }),
+          ),
+        })
+        .nullable()
+        .optional(),
       evidence: z.array(evidenceSchema),
       submitted_by: z.string(),
       submitted_at: z.string(),

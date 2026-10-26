@@ -1,3 +1,4 @@
+import * as coverage from '../evidence-coverage/coverage.repository.js';
 import type { PoolClient } from 'pg';
 import type { Database } from '../../config/db.js';
 import type {
@@ -88,8 +89,8 @@ export async function touch(client: PoolClient, id: string): Promise<void> {
 }
 
 export async function structure(client: PoolClient, id: string): Promise<ProjectStructure> {
-  const objectives = await client.query<{ title: string }>(
-    `SELECT title
+  const objectives = await client.query<{ id: string; title: string }>(
+    `SELECT id, title
     FROM project_objectives
     WHERE project_id = $1
     ORDER BY position`,
@@ -109,9 +110,19 @@ export async function structure(client: PoolClient, id: string): Promise<Project
     ORDER BY position`,
     [id],
   );
+  const coveragePlan = await coverage.plan(client, id);
   return {
+    objectiveIds: objectives.rows.map((o) => o.id),
     objectives: objectives.rows.map((o) => o.title),
-    milestones: milestones.rows,
+    milestones: milestones.rows.map((m) => ({
+      ...m,
+      objectiveIds: coveragePlan.links
+        .filter((l) => l.milestone_id === m.id)
+        .map((l) => l.objective_id),
+      expectedEvidence: coveragePlan.requirements
+        .filter((r) => r.milestone_id === m.id)
+        .map(({ id, title, required }) => ({ id, title, required })),
+    })),
     deliverables: deliverables.rows,
   };
 }
@@ -122,28 +133,20 @@ export async function saveStructure(
   draft: SavedStructure,
 ): Promise<void> {
   await client.query(
-    `WITH incoming AS (
-      SELECT
-        (ordinality - 1)::integer AS position,
-        title
-      FROM jsonb_array_elements_text($2::jsonb)
-        WITH ORDINALITY AS v(title, ordinality)
-    ),
-    removed AS (
-      DELETE FROM project_objectives
-      WHERE project_id = $1
-        AND position >= jsonb_array_length($2::jsonb)
-    )
-    INSERT INTO project_objectives (project_id, position, title)
-    SELECT $1, position, title
-    FROM incoming
-    ON CONFLICT (project_id, position) DO UPDATE
-    SET title = EXCLUDED.title
-    WHERE project_objectives.title IS DISTINCT FROM EXCLUDED.title`,
-    [id, JSON.stringify(draft.objectives)],
+    'DELETE FROM project_objectives WHERE project_id = $1 AND NOT (id = ANY($2::uuid[]))',
+    [id, draft.objectiveIds ?? []],
+  );
+  await client.query(
+    `INSERT INTO project_objectives (id, project_id, position, title)
+    SELECT objective_id, $1, (ordinality - 1)::integer, ($3::text[])[ordinality]
+    FROM unnest($2::uuid[]) WITH ORDINALITY AS incoming(objective_id, ordinality)
+    ON CONFLICT (id) DO UPDATE SET position = EXCLUDED.position, title = EXCLUDED.title
+    WHERE project_objectives.project_id = EXCLUDED.project_id`,
+    [id, draft.objectiveIds, draft.objectives],
   );
   await saveItems(client, 'project_milestones', id, draft.milestones);
   await saveItems(client, 'project_deliverables', id, draft.deliverables);
+  await coverage.savePlan(client, id, draft.milestones);
 }
 
 // The table identifier is restricted to these two internal constants; values stay parameterised.
@@ -232,6 +235,18 @@ export async function findMemberProjectForUpdate(
   id: string,
   userId: string,
 ): Promise<MemberProject | null> {
+  // First acquire the shared project lock using the caller's visible membership.
+  // Then read authority in a fresh statement snapshot: a JOIN evaluated before a
+  // lock wait can otherwise retain a membership that was removed while waiting.
+  const locked = await client.query(
+    `SELECT p.id
+    FROM projects p
+    JOIN project_memberships m ON m.project_id = p.id
+    WHERE p.id = $1 AND m.user_id = $2
+    FOR UPDATE OF p`,
+    [id, userId],
+  );
+  if (locked.rowCount !== 1) return null;
   return (
     (
       await client.query<MemberProject>(
@@ -254,8 +269,7 @@ export async function findMemberProjectForUpdate(
         FROM projects p
         JOIN project_memberships m ON m.project_id = p.id
         WHERE p.id = $1
-          AND m.user_id = $2
-        FOR UPDATE OF p`,
+          AND m.user_id = $2`,
         [id, userId],
       )
     ).rows[0] ?? null
@@ -654,6 +668,7 @@ export async function findProjectDetail(
       'updated_at', p.updated_at,
       'role', m.role,
       'progress', ${progressSql},
+      'objectiveIds', COALESCE((SELECT jsonb_agg(o.id ORDER BY o.position) FROM project_objectives o WHERE o.project_id = p.id), '[]'),
       'objectives', COALESCE((
         SELECT jsonb_agg(o.title ORDER BY o.position)
         FROM project_objectives o
@@ -664,7 +679,9 @@ export async function findProjectDetail(
           jsonb_build_object(
             'id', i.id,
             'title', i.title,
-            'required', i.required
+            'required', i.required,
+            'objectiveIds', COALESCE((SELECT jsonb_agg(mo.objective_id ORDER BY mo.objective_id) FROM milestone_objectives mo WHERE mo.milestone_id = i.id), '[]'),
+            'expectedEvidence', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', e.id, 'title', e.title, 'required', e.required) ORDER BY e.position) FROM milestone_expected_evidence e WHERE e.milestone_id = i.id), '[]')
           ) ORDER BY i.position
         )
         FROM project_milestones i
@@ -700,6 +717,19 @@ export async function findProjectDetail(
         FROM project_memberships pm
         JOIN users u ON u.id = pm.user_id
         WHERE pm.project_id = p.id
+      ), '[]'),
+      'former_members', COALESCE((
+        SELECT jsonb_agg(h ORDER BY h.removed_at DESC, h.user_id)
+        FROM (
+          SELECT DISTINCT ON (r.user_id) r.user_id, u.email, r.role, r.joined_at, r.removed_at
+          FROM project_membership_removals r
+          JOIN users u ON u.id = r.user_id
+          WHERE r.project_id = p.id AND NOT EXISTS (
+            SELECT 1 FROM project_memberships current_member
+            WHERE current_member.project_id = r.project_id AND current_member.user_id = r.user_id
+          )
+          ORDER BY r.user_id, r.removed_at DESC, r.id
+        ) h
       ), '[]'),
       'invitations', CASE WHEN m.role = ANY($3::text[]) THEN COALESCE((
         SELECT jsonb_agg(i)

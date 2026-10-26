@@ -83,8 +83,20 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await teammate
       .getByLabel('About your project')
       .fill('A shared draft updated by the invited author.');
+    const firstMilestone = teammate
+      .getByRole('group', { name: 'Milestones', exact: true })
+      .locator('.evidence-item')
+      .first();
+    await firstMilestone.getByText('Objectives and expected evidence', { exact: true }).click();
+    await firstMilestone.getByLabel('Supports: Understand the community needs').check();
+    await firstMilestone
+      .getByRole('button', { name: 'Add expected evidence', exact: true })
+      .click();
+    await firstMilestone
+      .getByLabel('Expected evidence 1', { exact: true })
+      .fill('Community interview notes');
     await teammate.getByRole('button', { name: 'Save brief' }).click();
-    await expect(teammate.getByRole('status')).toContainText('Project updated');
+    await expect(teammate.getByRole('status').filter({ hasText: 'Project updated' })).toBeVisible();
     await page.reload();
     await page.getByRole('tab', { name: 'Overview', exact: true }).click();
     await expect(page.locator('.project-about')).toContainText(
@@ -131,7 +143,7 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page.getByRole('button', { name: 'Edit brief' }).click();
     await page.getByLabel('Project title').fill('An accessible neighbourhood garden');
     await page.getByRole('button', { name: 'Save brief' }).click();
-    await expect(page.getByRole('status')).toContainText('Project updated');
+    await expect(page.getByRole('status').filter({ hasText: 'Project updated' })).toBeVisible();
     await page.getByRole('button', { name: 'Submit proposal' }).click();
     await expect(
       page.locator('.project-heading-meta').getByText('Proposal in review', { exact: true }),
@@ -162,12 +174,17 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await teammate
       .getByLabel('Evidence text', { exact: true })
       .fill('Neighbours want accessible raised beds.');
+    await teammate.getByLabel('Objective: Understand the community needs').check();
+    await teammate.getByLabel('Expected: Community interview notes · Required').check();
     await teammate.getByRole('button', { name: 'Add evidence', exact: true }).click();
     await teammate.getByLabel('Evidence title', { exact: true }).nth(1).fill('Reference');
     await teammate.getByLabel('Evidence type', { exact: true }).nth(1).selectOption('LINK');
     await teammate.getByLabel('Evidence URL', { exact: true }).fill('https://example.com/garden');
     await teammate.getByRole('button', { name: 'Save evidence draft' }).click();
-    await expect(teammate.getByRole('status')).toContainText('Milestone updated');
+    await expect(
+      teammate.getByRole('status').filter({ hasText: 'Milestone updated' }),
+    ).toBeVisible();
+    await expect(teammate.getByText('Draft', { exact: true }).first()).toBeVisible();
     await expect(
       teammate.getByRole('button', { name: 'Submit milestone', exact: true }),
     ).toHaveCount(0);
@@ -185,6 +202,10 @@ test('connected workspace: group invitations, proposal approval and milestone re
     ).toContainText('Milestone review');
     await reviewer.getByRole('region', { name: 'Review queue' }).getByRole('link').click();
     await expect(reviewer).toHaveURL(milestoneUrl);
+    await reviewer.getByText('Coverage in this submitted version', { exact: true }).click();
+    await expect(
+      reviewer.getByText('Community interview notes · Required · Evidence linked', { exact: true }),
+    ).toBeVisible();
     await expect(
       reviewer.getByLabel('What would you like the Author to look at?', { exact: true }),
     ).toHaveCount(0);
@@ -215,7 +236,9 @@ test('connected workspace: group invitations, proposal approval and milestone re
       .getByLabel('Evidence text', { exact: true })
       .fill('Revised: we interviewed neighbours across age groups.');
     await teammate.getByRole('button', { name: 'Save evidence draft' }).click();
-    await expect(teammate.getByRole('status')).toContainText('Milestone updated');
+    await expect(
+      teammate.getByRole('status').filter({ hasText: 'Milestone updated' }),
+    ).toBeVisible();
     await teammate.getByRole('button', { name: 'Reply', exact: true }).click();
     await teammate.getByLabel('What would you like to do?').selectOption('ADDRESS');
     await expect(
@@ -317,6 +340,63 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('tab', { name: 'Milestones', exact: true }).click();
     await expect(page.getByRole('link', { name: /Community presentation/ })).toBeVisible();
+    // A lead can remove a contributor without deleting their work, then re-invite and transfer leadership.
+    await page.goto(projectUrl + '?tab=team');
+    const contributorRow = page.locator('.team-row').filter({ hasText: emails[2]! });
+    await contributorRow.getByRole('button', { name: 'Remove Author', exact: true }).click();
+    await page
+      .getByRole('dialog')
+      .getByLabel('Reason for this team change')
+      .fill('The contributor is taking a break.');
+    await page.getByRole('button', { name: 'Confirm removal', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByText('Former Authors · preserved contributions', { exact: true }).click();
+    await expect(page.getByText('No current access', { exact: true })).toBeVisible();
+    await teammate.goto(projectUrl);
+    await expect(teammate.getByRole('alert')).toContainText('Project not found');
+    await page.screenshot({
+      path: '/tmp/trace-group-team-desktop.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({
+      path: '/tmp/trace-group-team-mobile.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByLabel('Email address', { exact: true }).fill(emails[2]!);
+    await page.getByLabel('Invite as').selectOption('AUTHOR');
+    await page.getByRole('button', { name: 'Create invitation link' }).click();
+    await expect(page.getByLabel('Invitation link', { exact: true })).toBeVisible();
+    await teammate.goto(await page.getByLabel('Invitation link', { exact: true }).inputValue());
+    await teammate.getByRole('button', { name: 'Accept invitation' }).click();
+    await expect(teammate).toHaveURL(projectUrl);
+    await page.reload();
+    await page
+      .locator('.team-row')
+      .filter({ hasText: emails[2]! })
+      .getByRole('button', { name: 'Make lead Author', exact: true })
+      .click();
+    await page
+      .getByRole('dialog')
+      .getByLabel('Reason for this team change')
+      .fill('The contributor will lead the remaining work.');
+    await page.getByRole('button', { name: 'Confirm lead transfer', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Create invitation link' })).toHaveCount(0);
+    await teammate.goto(projectUrl + '?tab=team');
+    await expect(teammate.getByRole('button', { name: 'Create invitation link' })).toBeVisible();
+    await expect(
+      teammate
+        .locator('.team-row')
+        .filter({ hasText: emails[0]! })
+        .getByRole('button', { name: 'Remove Author', exact: true }),
+    ).toBeVisible();
     await page.goto('/workspace/new');
     await page.getByLabel('Starting template').selectOption('custom');
     await page.getByLabel('Milestone 1 title', { exact: true }).fill('Research');

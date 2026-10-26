@@ -1,3 +1,5 @@
+import { coverageRouter } from '../evidence-coverage/coverage.routes.js';
+import { membersRouter } from '../members/members.routes.js';
 import { changesRouter } from '../changes/changes.routes.js';
 import { notificationsRouter } from '../notifications/notifications.routes.js';
 import { reviewsRouter } from '../reviews/reviews.routes.js';
@@ -86,3 +88,7 @@ projectsRouter.get(
 );
 
 projectsRouter.use('/:projectId/changes', changesRouter);
+
+projectsRouter.use('/:projectId/members', membersRouter);
+
+projectsRouter.use('/:projectId/coverage', coverageRouter);

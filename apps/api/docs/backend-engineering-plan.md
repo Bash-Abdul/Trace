@@ -1,7 +1,7 @@
 # Trace Backend Engineering Plan
 
 Status: Approved target plan  
-Current implementation: core auth, project/proposal workflows, text/link milestone reviews and notification inbox implemented; controlled active-project changes implemented locally. Remaining work is tracked in [roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19).
+Current implementation: core auth, project/proposal workflows, text/link milestone reviews and notification inbox implemented; controlled active-project changes, group membership management and evidence/objective coverage implemented locally. Remaining work is tracked in [roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19).
 
 Authority: This is the authoritative backend engineering plan for Trace
 

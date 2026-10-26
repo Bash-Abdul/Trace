@@ -2,6 +2,61 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Evidence requirements and coverage — October 26, 2026
+
+Issue #9 is implemented locally: stable objective identities, milestone-owned expected evidence,
+explicit draft-evidence mappings, immutable submission coverage snapshots, and factual project/
+milestone coverage. The existing brief and Changes editors support requirements; active-project
+changes require the existing main-Reviewer approval flow. Major requirement changes invalidate
+applicable milestone approvals without changing old submitted content or coverage.
+
+Existing demo page layouts remain. Coverage is an additional panel; mapping controls expand
+inside the existing milestone editor. Objective rows now keep their IDs when edited/reordered.
+The new modules are named `evidence-coverage` so source files are not swallowed by the repository's
+`coverage/` build-output ignore rule.
+
+See [evidence-coverage.md](./evidence-coverage.md) for usage, API contracts and state semantics.
+Required omissions are exposed for final eligibility (#12); this increment does not implement
+final approval or make evidence independently approvable. Pre-migration change proposals remain
+usable when their original plan matches, without rewriting saved snapshots.
+
+Verification: `pnpm verify` passed formatting, lint, types, 54 API unit tests, 82 database
+integration tests, 7 web unit tests and both builds. All 16 controlled browser tests passed;
+the new mobile editor screenshot was inspected. Both live API/browser flows passed, including
+author mapping choices and Reviewer access to submitted coverage. Both coverage migrations are
+applied to the isolated test and local development databases. The existing web bundle-size
+warning remains.
+
+Group management (#8) and this coverage increment form the verified membership/coverage checkpoint. Next: due dates
+and upcoming/overdue projections (#10), with timezone/date semantics agreed before implementation.
+Reviewer handover (#17) stays last; native mobile and separate chat remain future phases.
+
+## Group membership management — October 25, 2026
+
+Project-change checkpoint `7fb8636` is pushed to `origin/test`, including the external
+approval route explanation. Group member removal and lead transfer (#8) are implemented
+locally in the existing Team panel, with reason/confirmation, stale-request feedback and
+former-Author history. Removal ends current membership without deleting contributions;
+transfer preserves the original creator and makes the outgoing lead a contributing Author.
+Pending invitations issued under obsolete lead authority are cancelled. Former Authors
+cannot be invited as Reviewers of their own work.
+
+See [group-members.md](./group-members.md) for endpoints, membership/archive behaviour
+and concurrency fixes. Migration `1792891000000_membership-history` has been applied to
+the isolated test and local development databases. A reproduced account/project deadlock
+required a compatible session-account lock mode; a second reproduced stale JOIN required
+membership to be reread after obtaining the project lock. Reset/revocation serialization
+is retained. Group changes are included in the membership/coverage checkpoint; reviewer handover (#17) stays last.
+
+Next product increment: objective/expected-evidence mappings and factual coverage (#9).
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 54 API unit tests,
+75 database integration tests, 7 web unit tests and both builds. All 15 controlled
+browser tests passed; the mobile confirmation check also passed after its spacing
+adjustment. Both live API/browser flows passed again after the concurrency fixes,
+including removal, re-invitation and lead transfer. Mobile confirmation and Team
+screenshots were inspected. The web build retains its bundle-size warning.
+
 ## Controlled project changes — October 25, 2026
 
 Issue #7 is implemented locally: the project Changes tab supports declared minor

@@ -1,3 +1,7 @@
+import {
+  resolveObjectives,
+  resolveMilestoneCoverage,
+} from '../evidence-coverage/coverage.service.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { PoolClient } from 'pg';
@@ -36,7 +40,10 @@ async function snapshot(db: PoolClient, project: MemberProject): Promise<Proposa
     ...(await projects.structure(db, project.id)),
   };
 }
-function items(input: ChangeInput['milestones'], existing: StructureItem[]): StructureItem[] {
+function items(
+  input: ChangeInput['milestones'],
+  existing: StructureItem[],
+): (ChangeInput['milestones'][number] & { id: string })[] {
   const seen = new Set<string>();
   return input.map((item) => {
     if (item.id && (!existing.some((old) => old.id === item.id) || seen.has(item.id))) {
@@ -44,17 +51,43 @@ function items(input: ChangeInput['milestones'], existing: StructureItem[]): Str
     }
     const id = item.id ?? randomUUID();
     seen.add(id);
-    return { id, title: item.title, required: item.required };
+    return { ...item, id, title: item.title, required: item.required };
   });
 }
 function proposed(input: ChangeInput, known: ProposalSnapshot): ProposalSnapshot {
+  const objectiveIds = resolveObjectives(input, known);
   return {
+    objectiveIds,
     title: input.title,
     description: input.description,
     objectives: input.objectives,
-    milestones: items(input.milestones, known.milestones),
-    deliverables: items(input.deliverables, known.deliverables),
+    milestones: resolveMilestoneCoverage(
+      items(input.milestones, known.milestones),
+      known,
+      objectiveIds,
+    ),
+    deliverables: items(input.deliverables, known.deliverables).map(({ id, title, required }) => ({
+      id,
+      title,
+      required,
+    })),
   };
+}
+// Older saved change proposals predate stable objective IDs and evidence requirements.
+// Compare their original fields only when the current plan still has no coverage links.
+function matchesSnapshot(saved: ProposalSnapshot, current: ProposalSnapshot): boolean {
+  if (saved.objectiveIds) return isDeepStrictEqual(saved, current);
+  if (current.milestones.some((m) => m.objectiveIds?.length || m.expectedEvidence?.length))
+    return false;
+  const plain = (items: StructureItem[]) =>
+    items.map(({ id, title, required }) => ({ id, title, required }));
+  return isDeepStrictEqual(saved, {
+    title: current.title,
+    description: current.description,
+    objectives: current.objectives,
+    milestones: plain(current.milestones),
+    deliverables: plain(current.deliverables),
+  });
 }
 function changed(before: ProposalSnapshot, after: ProposalSnapshot) {
   if (isDeepStrictEqual(before, after)) throw badRequest('Make a change before saving.');
@@ -104,6 +137,17 @@ export async function minor(db: PoolClient, projectId: string, userId: string, i
   const shape = (entries: StructureItem[]) =>
     entries.map((i) => ({ id: i.id, required: i.required }));
   if (
+    !isDeepStrictEqual(before.objectiveIds, after.objectiveIds) ||
+    !isDeepStrictEqual(
+      before.milestones.map((m) => ({
+        objectiveIds: m.objectiveIds,
+        expectedEvidence: m.expectedEvidence,
+      })),
+      after.milestones.map((m) => ({
+        objectiveIds: m.objectiveIds,
+        expectedEvidence: m.expectedEvidence,
+      })),
+    ) ||
     before.objectives.length !== after.objectives.length ||
     !isDeepStrictEqual(shape(before.milestones), shape(after.milestones)) ||
     !isDeepStrictEqual(shape(before.deliverables), shape(after.deliverables))
@@ -114,7 +158,7 @@ export async function minor(db: PoolClient, projectId: string, userId: string, i
   }
   changed(before, after);
   await projects.updateBrief(db, projectId, { ...after, version: input.version });
-  await projects.saveStructure(db, projectId, after);
+  await projects.saveStructure(db, projectId, { ...after, objectiveIds: after.objectiveIds! });
   await record(
     db,
     projectId,
@@ -154,7 +198,17 @@ export async function edit(
   if (change.state !== 'DRAFT') throw conflict('Only a draft change can be edited.');
   const after = proposed(input, {
     ...change.before_structure,
-    milestones: [...change.before_structure.milestones, ...change.after_structure.milestones],
+    objectives: [...change.before_structure.objectives, ...change.after_structure.objectives],
+    objectiveIds: [
+      ...(change.before_structure.objectiveIds ?? []),
+      ...(change.after_structure.objectiveIds ?? []),
+    ],
+    milestones: [
+      ...change.after_structure.milestones,
+      ...change.before_structure.milestones.filter(
+        (m) => !change.after_structure.milestones.some((n) => n.id === m.id),
+      ),
+    ],
     deliverables: [...change.before_structure.deliverables, ...change.after_structure.deliverables],
   });
   changed(change.before_structure, after);
@@ -185,18 +239,33 @@ export async function act(
     (action === 'WITHDRAW' && !['DRAFT', 'PROPOSED'].includes(change.state))
   )
     throw conflict('This change is no longer available for that action.');
-  if (action === 'SUBMIT' || action === 'APPROVE') {
-    if (!isDeepStrictEqual(change.before_structure, await snapshot(db, project)))
+  const currentStructure =
+    action === 'SUBMIT' || action === 'APPROVE' ? await snapshot(db, project) : null;
+  if (currentStructure) {
+    if (!matchesSnapshot(change.before_structure, currentStructure))
       throw conflict(
         'The project structure changed. Withdraw this change and prepare a new proposal.',
       );
   }
   let invalidated: string[] = [];
   if (action === 'APPROVE') {
-    const before = change.before_structure;
-    const after = change.after_structure;
-    // Objective/brief semantics cannot be mapped to individual milestones yet.
-    // Conservatively require fresh approval for retained milestones when they change.
+    const before = currentStructure!;
+    const objectiveIds =
+      change.after_structure.objectiveIds ?? resolveObjectives(change.after_structure, before);
+    const after = {
+      ...change.after_structure,
+      objectiveIds,
+      milestones: resolveMilestoneCoverage(
+        change.after_structure.milestones,
+        {
+          ...before,
+          milestones: change.after_structure.milestones,
+        },
+        objectiveIds,
+      ),
+    };
+    // Wording can change an objective's meaning, so retain conservative invalidation
+    // for brief/objective edits. Requirement changes invalidate their own milestone.
     const scopeChanged =
       before.title !== after.title ||
       before.description !== after.description ||
@@ -204,7 +273,14 @@ export async function act(
     const affected = before.milestones
       .filter((old) => {
         const next = after.milestones.find((i) => i.id === old.id);
-        return !next || scopeChanged || old.title !== next.title || old.required !== next.required;
+        return (
+          !next ||
+          scopeChanged ||
+          old.title !== next.title ||
+          old.required !== next.required ||
+          !isDeepStrictEqual(old.objectiveIds, next.objectiveIds) ||
+          !isDeepStrictEqual(old.expectedEvidence, next.expectedEvidence)
+        );
       })
       .map((i) => i.id);
     const states = await repository.milestoneStates(db, projectId);

@@ -18,6 +18,10 @@ export type NewFeedback = z.infer<typeof feedbackSchema>;
 export type FeedbackUpdate = z.infer<typeof feedbackUpdateSchema>;
 export type State = 'NOT_STARTED' | 'DRAFT' | 'AWAITING_REVIEW' | 'REVISION_REQUESTED' | 'APPROVED';
 export interface Evidence {
+  objectiveIds?: string[];
+  expectationIds?: string[];
+  objectiveMappings?: { id: string; title: string }[];
+  expectationMappings?: { id: string; title: string; required: boolean }[];
   id: string;
   title: string;
   kind: 'TEXT' | 'LINK';
@@ -26,6 +30,10 @@ export interface Evidence {
   updated_by: string;
 }
 export interface Submission {
+  coverage?: {
+    objectives: { id: string; title: string }[];
+    expectedEvidence: { id: string; title: string; required: boolean }[];
+  } | null;
   id: string;
   number: number;
   evidence: Evidence[];
