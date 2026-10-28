@@ -1,3 +1,4 @@
+import { ScheduleFields } from '../deadlines/ScheduleFields';
 import { useState, type FormEvent } from 'react';
 import { StructureEditor, structurePayload, type StructureItem } from './StructureEditor';
 import type { ProjectDetail } from './workspace-api';
@@ -38,6 +39,9 @@ export function ProjectDraftEditor({
       ...(changeMode === 'minor'
         ? { meaningUnchanged: data.get('meaningUnchanged') === 'on' }
         : {}),
+      ...(changeMode === 'minor'
+        ? {}
+        : { dueDate: data.get('dueDate') || null, timezone: data.get('timezone') || null }),
       title: data.get('title'),
       description: data.get('description'),
       objectives: objectives.map((o) => o.title),
@@ -153,6 +157,11 @@ export function ProjectDraftEditor({
           </button>
         )}
       </fieldset>
+      <ScheduleFields
+        dueDate={project.dueDate}
+        timezone={project.timezone}
+        disabled={busy || changeMode === 'minor'}
+      />
       <StructureEditor
         label="Milestone"
         objectives={objectives.flatMap((o) => (o.id ? [{ id: o.id, title: o.title }] : []))}

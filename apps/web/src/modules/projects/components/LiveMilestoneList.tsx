@@ -1,3 +1,4 @@
+import { DeadlineLabel } from '../../deadlines/DeadlineLabel';
 import { ArrowUpRight, Check, Circle, FilePenLine, MessageSquare, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '../../../shared/ui/Primitives';
@@ -45,7 +46,13 @@ export function LiveMilestoneList({ project }: { project: ProjectDetail }) {
             >
               {state ? stateLabels[state] : 'Status unavailable'}
             </Badge>
-            <span className="milestone-due">No due date</span>
+            <span className="milestone-due">
+              <DeadlineLabel
+                dueDate={milestone.dueDate}
+                timezone={project.timezone}
+                deadline={project.progress?.milestones.find((m) => m.id === milestone.id)?.deadline}
+              />
+            </span>
             <ArrowUpRight size={17} />
           </Link>
         );

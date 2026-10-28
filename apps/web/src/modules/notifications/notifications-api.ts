@@ -21,6 +21,20 @@ export type Notification = Inbox['items'][number];
 export function notificationLabel(item: Notification) {
   const decision = item.details.decision;
   switch (item.action) {
+    case 'FINAL_APPROVAL_REQUESTED':
+      return 'Final project approval requested';
+    case 'FINAL_APPROVAL_INVALIDATED':
+      return 'Final request invalidated by project changes';
+    case 'FINAL_APPROVAL_WITHDRAWN':
+      return 'Final request withdrawn';
+    case 'FINAL_REVISION_REQUESTED':
+      return 'Final project revision requested';
+    case 'PROJECT_COMPLETED':
+      return 'Project completion approved';
+    case 'DELIVERABLE_SUBMITTED':
+      return 'Final deliverable submitted';
+    case 'DELIVERABLE_REVISION_STARTED':
+      return 'Final deliverable revision started';
     case 'GROUP_AUTHOR_REMOVED':
       return 'Group Author removed';
     case 'GROUP_LEAD_TRANSFERRED':
@@ -67,6 +81,8 @@ export function notificationLabel(item: Notification) {
   }
 }
 export function notificationDestination(item: Notification) {
+  if (item.action.startsWith('DELIVERABLE_') && typeof item.details.deliverableId === 'string')
+    return `/projects/${item.project_id}/deliverables/${encodeURIComponent(item.details.deliverableId)}`;
   if (item.action === 'GROUP_AUTHOR_REMOVED' || item.action === 'GROUP_LEAD_TRANSFERRED')
     return `/projects/${item.project_id}?tab=team`;
   if (item.action.startsWith('PROJECT_CHANGE_') || item.action === 'PROJECT_MINOR_EDIT')

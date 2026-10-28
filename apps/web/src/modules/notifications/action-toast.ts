@@ -10,6 +10,13 @@ export function announceAction(message: string, error = false) {
   if (!error) window.dispatchEvent(new Event(projectChangedEvent));
 }
 export function actionMessage(path: string, method: string) {
+  if (path.includes('/final-approval')) return 'Final approval updated.';
+  if (path.includes('/deliverables/'))
+    return path.endsWith('/submissions')
+      ? 'Final deliverable submitted.'
+      : path.endsWith('/revision')
+        ? 'Revision started; previous submissions preserved.'
+        : 'Deliverable draft saved.';
   if (path.includes('/members/'))
     return path.endsWith('/transfer-lead')
       ? 'Group leadership transferred.'

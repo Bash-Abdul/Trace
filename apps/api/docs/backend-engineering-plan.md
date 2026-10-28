@@ -1,7 +1,7 @@
 # Trace Backend Engineering Plan
 
 Status: Approved target plan  
-Current implementation: core auth, project/proposal workflows, text/link milestone reviews and notification inbox implemented; controlled active-project changes, group membership management and evidence/objective coverage implemented locally. Remaining work is tracked in [roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19).
+Current implementation: core auth, project/proposal workflows, text/link milestone reviews and notification inbox implemented; controlled active-project changes, group membership management, evidence/objective coverage and optional due dates implemented. Remaining work is tracked in [roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19).
 
 Authority: This is the authoritative backend engineering plan for Trace
 
@@ -13,7 +13,7 @@ Build Trace as a TypeScript/Express modular monolith backed by PostgreSQL, with 
 
 Authentication is application-owned email/password authentication using Argon2id and opaque, database-backed sessions carried in secure HTTP-only cookies. Trace owns accounts, credentials, sessions, verification, reset, and revocation workflows; it does not use JWTs or an external authentication service/framework.
 
-The authentication method is selected and Phase 1 has started. Decide upload restrictions before Phase 3, and escalation timing and initiation before Phase 4. Timezone rules must precede deadline calculations. Deletion, retention, no-successor recovery, and measurable service targets can wait until before real users.
+The authentication method is selected and Phase 1 has started. Decide upload restrictions before Phase 3, and escalation timing and initiation before Phase 4. Timezone rules were confirmed on October 26, 2026: optional calendar dates, project timezone suggested from the creator’s browser, end-of-day deadlines, a seven-day due-soon window and informational overdue state. Deletion, retention, no-successor recovery, and measurable service targets can wait until before real users.
 
 ## 1. Product definition
 
@@ -417,7 +417,7 @@ Before real users, prepare and exercise deployment/rollback, database restore, o
 | **Required now** | Printable authenticated portfolio | Confirmed MVP output |
 | **Required before Phase 3** | File types, limits, quotas, and scanning policy | Upload implementation depends on them |
 | **Required before Phase 4** | Escalation initiator, notice schedule, and transfer timing | Automatic succession depends on them |
-| **Required before deadline calculations** | Project timezone and overdue semantics | Prevent inconsistent deadline state |
+| **Resolved October 26, 2026** | Optional dates in the project timezone; end-of-day deadlines; due soon within seven days; overdue is informational | See optional-due-dates.md |
 | **Required before real users** | Deletion, retention, and no-successor recovery | Sensitive data and blocked projects require an operational policy |
 | **Required before real users** | Measurable service targets and restore test | Meaningful alerts and recovery commitments depend on them |
 | **Add when triggered** | Redis | Only for a demonstrated cache, lock, or rate-limit need |
@@ -461,7 +461,7 @@ Decisions are resolved just before the work that depends on them rather than fro
 
 - file policy before Phase 3 uploads;
 - escalation initiation and timing before Phase 4 automatic succession;
-- timezone semantics before any deadline calculation work;
+- timezone semantics confirmed October 26, 2026 (see optional-due-dates.md);
 - deletion, retention, no-successor recovery, and measurable targets before real users.
 
 ### Phase 1 — Foundation, authentication, and access boundary
@@ -494,7 +494,7 @@ Complete when transfer is atomic and idempotent, exactly one main Reviewer remai
 
 ### Phase 5 — Final workflow, deadlines, and portfolio
 
-Dependency for deadline calculations: approve project timezone and precise overdue semantics.
+Deadline semantics are confirmed and implemented; see [optional-due-dates.md](./optional-due-dates.md).
 
 Build deliverable versions, deadline projections, final checklist, final request and decision, invalidation behavior, final portfolio snapshot, and printable authenticated web view.
 
@@ -511,7 +511,6 @@ Remaining unresolved decisions are:
 - account and project deletion;
 - data retention;
 - exact file types, size limits, quotas, and scanning policy;
-- project timezone and precise overdue semantics;
 - the event or person authorised to initiate Reviewer inactivity escalation;
 - exact Reviewer notice count, response period, and transfer timing;
 - audited recovery when no dormant successor exists;

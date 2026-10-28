@@ -1,3 +1,6 @@
+import { portfolioRouter } from '../portfolio/portfolio.routes.js';
+import { finalApprovalRouter } from '../final-approval/final-approval.routes.js';
+import { deliverablesRouter } from '../deliverables/deliverables.routes.js';
 import { coverageRouter } from '../evidence-coverage/coverage.routes.js';
 import { membersRouter } from '../members/members.routes.js';
 import { changesRouter } from '../changes/changes.routes.js';
@@ -92,3 +95,9 @@ projectsRouter.use('/:projectId/changes', changesRouter);
 projectsRouter.use('/:projectId/members', membersRouter);
 
 projectsRouter.use('/:projectId/coverage', coverageRouter);
+
+projectsRouter.use('/:projectId/deliverables/:deliverableId', deliverablesRouter);
+
+projectsRouter.use('/:projectId/final-approval', finalApprovalRouter);
+
+projectsRouter.use('/:projectId/portfolio', portfolioRouter);

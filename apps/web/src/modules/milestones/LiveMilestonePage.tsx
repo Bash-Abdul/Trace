@@ -1,3 +1,4 @@
+import { DeadlineLabel, dateLabel } from '../deadlines/DeadlineLabel';
 import { ProjectCoverage } from '../evidence-coverage/ProjectCoverage';
 import { HelpHint } from '../../shared/ui/HelpHint';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -173,7 +174,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
               <p>
                 {detail.milestone.archived_at
                   ? 'This milestone is archived. Read its preserved work and finish any existing feedback threads below.'
-                  : project.status !== 'ACTIVE'
+                  : !['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)
                     ? 'This project must be active before milestone work can begin.'
                     : detail.state === 'APPROVED'
                       ? 'This milestone is approved. You can still read and discuss its submitted work below; a thread does not undo approval.'
@@ -188,13 +189,22 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
             </div>
           </div>
           {!detail.milestone.archived_at && (
+            <p className="muted">
+              <DeadlineLabel
+                dueDate={detail.milestone.dueDate}
+                timezone={detail.milestone.timezone}
+                deadline={detail.deadline}
+              />
+            </p>
+          )}
+          {!detail.milestone.archived_at && (
             <ProjectCoverage
               projectId={projectId}
               milestoneId={milestoneId}
               version={detail.version}
             />
           )}
-          {project.status === 'ACTIVE' &&
+          {['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status) &&
             !detail.milestone.archived_at &&
             ['LEAD_AUTHOR', 'AUTHOR'].includes(project.role) &&
             ['NOT_STARTED', 'DRAFT', 'REVISION_REQUESTED'].includes(detail.state) && (
@@ -217,7 +227,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                 }}
               />
             )}
-          {project.status === 'ACTIVE' &&
+          {['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status) &&
             !detail.milestone.archived_at &&
             project.role === 'LEAD_AUTHOR' &&
             detail.state === 'DRAFT' && (
@@ -260,6 +270,10 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                 {submission.coverage && (
                   <details>
                     <summary>Coverage in this submitted version</summary>
+                    <p>
+                      Milestone deadline at submission: {dateLabel(submission.coverage.dueDate)}
+                      {submission.coverage.timezone ? ` · ${submission.coverage.timezone}` : ''}
+                    </p>
                     <p className="muted">
                       The expectations and links recorded when this version was submitted.
                     </p>
@@ -287,7 +301,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                     <strong>Milestone decision:</strong> {submission.feedback}
                   </p>
                 )}
-                {project.status === 'ACTIVE' &&
+                {['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status) &&
                   !detail.milestone.archived_at &&
                   project.role === 'MAIN_REVIEWER' &&
                   (feedbackFor !== submission.id ? (
@@ -334,7 +348,7 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
                   ))}
               </details>
             ))}
-            {project.status === 'ACTIVE' &&
+            {['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status) &&
               !detail.milestone.archived_at &&
               project.role === 'MAIN_REVIEWER' &&
               detail.state === 'AWAITING_REVIEW' && (
@@ -379,7 +393,11 @@ function MilestoneContent({ projectId, milestoneId }: { projectId: string; miles
           </section>
           <MilestoneFeedback
             detail={detail}
-            role={project.status === 'ACTIVE' ? project.role : 'DORMANT_REVIEWER'}
+            role={
+              ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)
+                ? project.role
+                : 'DORMANT_REVIEWER'
+            }
             busy={busy}
             run={run}
             name={name}

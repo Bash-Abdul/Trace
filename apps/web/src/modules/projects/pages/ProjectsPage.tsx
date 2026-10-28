@@ -21,10 +21,12 @@ export function ProjectsPage({ reviewing = false }: { reviewing?: boolean }) {
         p.title.toLowerCase().includes(search.toLowerCase()) &&
         (filter === 'all' ||
           (filter === 'active'
-            ? p.status === 'ACTIVE'
-            : filter === 'review'
-              ? p.status === 'PROPOSAL_IN_REVIEW'
-              : ['SETUP', 'PROPOSAL_CHANGES_REQUESTED'].includes(p.status))),
+            ? ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(p.status)
+            : filter === 'completed'
+              ? p.status === 'COMPLETED'
+              : filter === 'review'
+                ? p.status === 'PROPOSAL_IN_REVIEW'
+                : ['SETUP', 'PROPOSAL_CHANGES_REQUESTED'].includes(p.status))),
     )
     .sort((a, b) => (sort === 'title' ? a.title.localeCompare(b.title) : 0));
   return (
@@ -49,7 +51,7 @@ export function ProjectsPage({ reviewing = false }: { reviewing?: boolean }) {
       </div>
       <div className="project-toolbar">
         <div className="filter-tabs" aria-label="Filter projects">
-          {['all', 'active', 'setup', 'review'].map((value) => (
+          {['all', 'active', 'setup', 'review', 'completed'].map((value) => (
             <button
               key={value}
               aria-pressed={filter === value}
@@ -62,7 +64,9 @@ export function ProjectsPage({ reviewing = false }: { reviewing?: boolean }) {
                   ? 'Getting started'
                   : value === 'active'
                     ? 'In progress'
-                    : 'Proposal review'}
+                    : value === 'completed'
+                      ? 'Completed'
+                      : 'Proposal review'}
             </button>
           ))}
         </div>

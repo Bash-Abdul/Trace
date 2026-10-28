@@ -15,7 +15,23 @@ export const evidenceSchema = z.object({
   updated_by: z.string(),
 });
 export const milestoneDetailSchema = z.object({
+  deadline: z
+    .object({
+      state: z.enum([
+        'NO_DUE_DATE',
+        'SCHEDULED',
+        'DUE_SOON',
+        'DUE_TODAY',
+        'OVERDUE',
+        'APPROVED',
+        'INACTIVE',
+      ]),
+      daysRemaining: z.number().nullable(),
+    })
+    .optional(),
   milestone: z.object({
+    dueDate: z.string().nullable().optional(),
+    timezone: z.string().nullable().optional(),
     id: z.string(),
     title: z.string(),
     required: z.boolean(),
@@ -30,6 +46,8 @@ export const milestoneDetailSchema = z.object({
       number: z.number(),
       coverage: z
         .object({
+          dueDate: z.string().nullable().optional(),
+          timezone: z.string().nullable().optional(),
           objectives: z.array(z.object({ id: z.string(), title: z.string() })),
           expectedEvidence: z.array(
             z.object({ id: z.string(), title: z.string(), required: z.boolean() }),

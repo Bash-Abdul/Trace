@@ -268,3 +268,19 @@
     margin: 18mm;
   }
 }
+
+.portfolio-document {
+  overflow-wrap: anywhere;
+}
+.portfolio-history time {
+  white-space: normal;
+}
+@media print {
+  .portfolio-document a[href]::after {
+    content: ' (' attr(href) ')';
+  }
+  .portfolio-document p {
+    orphans: 3;
+    widows: 3;
+  }
+}

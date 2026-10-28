@@ -27,6 +27,9 @@ test.beforeAll(async () => {
       [email, hash],
     );
 });
+test.beforeEach(async () => {
+  await pool.query('DELETE FROM auth_rate_limits');
+});
 test.afterAll(async () => {
   await pool.query(
     'DELETE FROM projects WHERE created_by_user_id IN (SELECT id FROM users WHERE email=ANY($1::text[]))',
@@ -60,11 +63,15 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page
       .getByLabel('Objectives', { exact: true })
       .fill('Understand the community needs\nDevelop an accessible garden proposal');
+    await page.getByLabel('Project due date (optional)', { exact: true }).fill('2028-12-20');
+    await page.getByLabel('Project timezone', { exact: true }).fill('Europe/London');
+    await page.getByLabel('Milestone 1 due date (optional)', { exact: true }).fill('2028-11-01');
     await page.getByRole('button', { name: 'Create project', exact: true }).click();
     await expect(
       page.getByRole('heading', { name: 'A shared neighbourhood garden', exact: true }),
     ).toBeVisible();
     const projectUrl = page.url();
+    await expect(page.locator('.project-heading-meta')).toContainText('20 Dec 2028');
     await page.getByRole('tab', { name: 'Team', exact: true }).click();
     await expect(page.getByLabel('Invite as').getByRole('option')).toHaveCount(2);
     await page.getByLabel('Email address', { exact: true }).fill(emails[2]!);
@@ -202,6 +209,7 @@ test('connected workspace: group invitations, proposal approval and milestone re
     ).toContainText('Milestone review');
     await reviewer.getByRole('region', { name: 'Review queue' }).getByRole('link').click();
     await expect(reviewer).toHaveURL(milestoneUrl);
+    await expect(reviewer.getByText('1 Nov 2028', { exact: true }).first()).toBeVisible();
     await reviewer.getByText('Coverage in this submitted version', { exact: true }).click();
     await expect(
       reviewer.getByText('Community interview notes · Required · Evidence linked', { exact: true }),
@@ -340,6 +348,56 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('tab', { name: 'Milestones', exact: true }).click();
     await expect(page.getByRole('link', { name: /Community presentation/ })).toBeVisible();
+    // Contributors prepare final outputs; the lead submits immutable versions for the Reviewer.
+    await teammate.goto(projectUrl);
+    await teammate.getByRole('link', { name: 'Open deliverable', exact: true }).first().click();
+    const deliverableUrl = teammate.url();
+    await teammate
+      .getByLabel('Deliverable text', { exact: true })
+      .fill('Our final garden proposal.');
+    await teammate.getByRole('button', { name: 'Save deliverable draft' }).click();
+    await expect(teammate.getByText('Your lead Author submits the saved draft.')).toBeVisible();
+    await expect(teammate.getByRole('button', { name: 'Submit final deliverable' })).toHaveCount(0);
+    await page.goto(deliverableUrl);
+    await page.getByLabel('Submission note (optional)').fill('Ready for review.');
+    await expect(page.getByRole('button', { name: 'Submit final deliverable' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Save deliverable draft' }).click();
+    await page.getByRole('button', { name: 'Submit final deliverable' }).click();
+    await expect(page.getByText('Version 1 · Current submission', { exact: true })).toBeVisible();
+    await reviewer.goto(deliverableUrl);
+    await expect(reviewer.getByRole('heading', { name: 'Current submitted output' })).toBeVisible();
+    await expect(reviewer.getByRole('button', { name: 'Start a revision' })).toHaveCount(0);
+    await teammate.reload();
+    await teammate.getByRole('button', { name: 'Start a revision' }).click();
+    const revisionResponse = teammate.waitForResponse(
+      (response) => response.url().endsWith('/revision') && response.request().method() === 'POST',
+    );
+    await teammate.getByRole('button', { name: 'Confirm revision' }).click();
+    const revised = await revisionResponse;
+    expect(revised.status(), await revised.text()).toBe(200);
+    expect((await revised.json()).state).toBe('DRAFT');
+    await expect(
+      teammate.getByRole('heading', { name: 'Deliverable draft' }),
+      await teammate.locator('main').innerText(),
+    ).toBeVisible();
+    await teammate
+      .getByLabel('Deliverable text', { exact: true })
+      .fill('Our revised garden proposal.');
+    await teammate.getByRole('button', { name: 'Save deliverable draft' }).click();
+    await expect(
+      teammate.getByRole('status').filter({ hasText: 'Deliverable updated.' }),
+    ).toBeVisible();
+    await page.reload();
+    await page.getByRole('button', { name: 'Submit final deliverable' }).click();
+    await expect(page.getByText('Version 2 · Current submission', { exact: true })).toBeVisible();
+    await page.getByText('Version 1 · Previous submission', { exact: true }).click();
+    await expect(page.getByText('Our final garden proposal.', { exact: true })).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({ path: '/tmp/trace-deliverable-mobile.png', fullPage: true });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     // A lead can remove a contributor without deleting their work, then re-invite and transfer leadership.
     await page.goto(projectUrl + '?tab=team');
     const contributorRow = page.locator('.team-row').filter({ hasText: emails[2]! });
@@ -423,5 +481,158 @@ test('connected workspace: group invitations, proposal approval and milestone re
     await expect(page.getByLabel('Invite as')).toHaveValue('MAIN_REVIEWER');
   } finally {
     await Promise.all([reviewerContext.close(), teammateContext.close()]);
+  }
+});
+
+test('final approval: readiness, invalidation, revision and completion preserve the project record', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext({ baseURL });
+  try {
+    const reviewer = await context.newPage();
+    await signIn(page, emails[0]!);
+    await page.goto('/projects/new');
+    await page.getByLabel('Starting template').selectOption('custom');
+    await page.getByLabel('Project title').fill('Final approval browser project');
+    await page.getByLabel('About your project').fill('A complete project for final review.');
+    await page.getByLabel('Objectives', { exact: true }).fill('Deliver the research');
+    await page.getByLabel('Approval route').selectOption('EXTERNALLY_APPROVED');
+    await page.getByLabel('Milestone 1 title', { exact: true }).fill('Research');
+    await page.getByLabel('Deliverable 1 title', { exact: true }).fill('Research report');
+    await page.getByRole('button', { name: 'Create project', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Final approval browser project', exact: true }),
+    ).toBeVisible();
+    const projectUrl = page.url();
+    await page.getByRole('tab', { name: 'Team', exact: true }).click();
+    await page.getByLabel('Email address', { exact: true }).fill(emails[1]!);
+    await page.getByRole('button', { name: 'Create invitation link' }).click();
+    const link = await page.getByLabel('Invitation link', { exact: true }).inputValue();
+    await signIn(reviewer, emails[1]!);
+    await reviewer.goto(link);
+    await reviewer.getByRole('button', { name: 'Accept invitation' }).click();
+    await expect(reviewer).toHaveURL(projectUrl);
+    await page.goto(projectUrl);
+    await expect(
+      page.getByRole('button', { name: 'Request final approval', exact: true }),
+    ).toBeDisabled();
+    await page.getByRole('link', { name: /MILESTONE 01.*Research/ }).click();
+    const milestoneUrl = page.url();
+    await page.getByRole('button', { name: 'Add evidence', exact: true }).click();
+    await page.getByLabel('Evidence title', { exact: true }).fill('Findings');
+    await page.getByLabel('Evidence text', { exact: true }).fill('We completed the research.');
+    await page.getByRole('button', { name: 'Save evidence draft' }).click();
+    await page.getByRole('button', { name: 'Submit milestone', exact: true }).click();
+    await expect(page.getByText('Version 1 · Awaiting review', { exact: true })).toBeVisible();
+    await reviewer.goto(milestoneUrl);
+    await reviewer.getByRole('button', { name: 'Save milestone decision' }).click();
+    await expect(reviewer.getByText('Version 1 · Approved', { exact: true })).toBeVisible();
+    await page.goto(projectUrl);
+    await page.getByRole('link', { name: 'Open deliverable', exact: true }).click();
+    const outputUrl = page.url();
+    await page.getByLabel('Deliverable text', { exact: true }).fill('Our research report.');
+    await page.getByRole('button', { name: 'Save deliverable draft' }).click();
+    await page.getByRole('button', { name: 'Submit final deliverable' }).click();
+    await expect(page.getByText('Version 1 · Current submission', { exact: true })).toBeVisible();
+    await page.goto(projectUrl);
+    await page.getByRole('link', { name: 'Process portfolio', exact: true }).click();
+    await expect(page.getByText('Live preview · work in progress', { exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Back to project' }).click();
+    await page.getByRole('button', { name: 'Request final approval', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Withdraw final request' })).toBeVisible();
+    await page.goto(outputUrl);
+    await page.getByRole('button', { name: 'Start a revision' }).click();
+    await page.getByRole('button', { name: 'Confirm revision' }).click();
+    await expect(page.getByRole('button', { name: 'Submit final deliverable' })).toBeVisible();
+    await reviewer.goto(projectUrl);
+    await reviewer.getByText('Final approval history', { exact: true }).click();
+    await expect(
+      reviewer.getByText('Request 1 · Invalidated by project changes', { exact: true }),
+    ).toBeVisible();
+    await expect(reviewer.getByRole('button', { name: 'Save final decision' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Submit final deliverable' }).click();
+    await expect(page.getByText('Version 2 · Current submission', { exact: true })).toBeVisible();
+    await page.goto(projectUrl);
+    await page.getByRole('button', { name: 'Request final approval', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Withdraw final request' })).toBeVisible();
+    await reviewer.goto('/reviews');
+    await reviewer
+      .getByRole('region', { name: 'Review queue' })
+      .getByRole('link')
+      .filter({ hasText: 'Final approval browser project' })
+      .click();
+    await reviewer.getByLabel('Final project decision').selectOption('REQUEST_REVISION');
+    await reviewer
+      .getByLabel('Final approval feedback')
+      .fill('Please confirm the report is final.');
+    await reviewer.getByRole('button', { name: 'Save final decision' }).click();
+    await expect(reviewer.getByRole('button', { name: 'Save final decision' })).toHaveCount(0);
+    await page.reload();
+    await page.getByText('Final approval history', { exact: true }).click();
+    await expect(
+      page.getByText('Please confirm the report is final.', { exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Request final approval', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Withdraw final request' })).toBeVisible();
+    await reviewer.goto(projectUrl);
+    await reviewer.getByLabel('Final approval feedback').fill('Confirmed. Well done.');
+    await reviewer.getByRole('button', { name: 'Save final decision' }).click();
+    await expect(
+      reviewer.getByRole('heading', { name: 'Project completed', exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole('heading', { name: 'Project completed', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Request final approval', exact: true }),
+    ).toHaveCount(0);
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: '/tmp/trace-final-approval-mobile.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await page.getByRole('link', { name: 'Process portfolio', exact: true }).click();
+    await expect(page.getByText('Completed project · final record', { exact: true })).toBeVisible();
+    await expect(page.getByText('Our research report.', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('Confirmed. Well done.', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: '/tmp/trace-portfolio-mobile.png',
+      fullPage: true,
+      animations: 'disabled',
+    });
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('.portfolio-toolbar')).toBeHidden();
+    await expect(
+      page.getByRole('heading', { name: 'Feedback that shaped the work' }),
+    ).toBeVisible();
+    await page.pdf({ path: '/tmp/trace-portfolio-print.pdf', preferCSSPageSize: true });
+    await page.emulateMedia({ media: 'screen' });
+    await page.goto('/portfolio');
+    await expect(
+      page
+        .locator('.portfolio-grid')
+        .getByRole('link')
+        .filter({ hasText: 'Final approval browser project' }),
+    ).toContainText('Final record');
+    await page.goto(outputUrl);
+    await expect(page.getByRole('button', { name: 'Start a revision' })).toHaveCount(0);
+    await page.goto('/projects');
+    await page.getByRole('button', { name: 'Completed', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Final approval browser project', exact: true }),
+    ).toBeVisible();
+  } finally {
+    await context.close();
   }
 });

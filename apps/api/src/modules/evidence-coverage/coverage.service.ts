@@ -64,7 +64,12 @@ export function resolveMilestoneCoverage(
         return { id, title: requirement.title, required: requirement.required };
       },
     );
-    return { ...item, objectiveIds: [...links].sort(), expectedEvidence: requirements };
+    return {
+      ...item,
+      dueDate: item.dueDate === undefined ? (old?.dueDate ?? null) : item.dueDate,
+      objectiveIds: [...links].sort(),
+      expectedEvidence: requirements,
+    };
   });
 }
 

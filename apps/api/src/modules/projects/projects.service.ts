@@ -1,3 +1,5 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
+import { validateSchedule, withDeadlines } from '../deadlines/deadlines.service.js';
 import {
   resolveObjectives,
   resolveMilestoneCoverage,
@@ -14,6 +16,7 @@ import { templates } from './projects.templates.js';
 import * as repository from './projects.repository.js';
 import type {
   CreateProject,
+  SavedStructure,
   Draft,
   Invitation,
   Decision,
@@ -59,7 +62,7 @@ function requireDraft(project: MemberProject): void {
 }
 
 function requireInvitationPermission(project: MemberProject, role: Invitation['role']): void {
-  if (project.status === 'PROPOSAL_REJECTED') {
+  if (['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status)) {
     throw conflict('This project was rejected.');
   }
   if (
@@ -74,8 +77,11 @@ function requireInvitationPermission(project: MemberProject, role: Invitation['r
   throw forbidden('This invitation role is not allowed for your project.');
 }
 
-export function listProjects(client: Database, userId: string): Promise<ProjectListItem[]> {
-  return repository.listProjects(client, userId);
+export async function listProjects(client: Database, userId: string): Promise<ProjectListItem[]> {
+  const now = new Date();
+  return (await repository.listProjects(client, userId)).map((project) =>
+    withDeadlines(project, now),
+  );
 }
 
 export async function getProject(
@@ -91,7 +97,7 @@ export async function getProject(
   if (!project) {
     throw notFound('Project not found');
   }
-  return project;
+  return withDeadlines(project);
 }
 
 export async function createProject(
@@ -103,6 +109,7 @@ export async function createProject(
   if (!template && input.templateKey !== 'custom') {
     throw badRequest('Unknown project template', 'VALIDATION_ERROR');
   }
+  validateSchedule(input, input.milestones ?? []);
   const id = await repository.insertProject(client, userId, input, template?.version ?? 1);
   await repository.addMember(client, id, userId, input.creatorRole);
   if (
@@ -112,7 +119,7 @@ export async function createProject(
     throw badRequest(
       'Create the project first, then link its objectives and expected evidence in the brief.',
     );
-  await repository.saveStructure(client, id, {
+  const initialStructure: SavedStructure = {
     ...input,
     objectiveIds: input.objectives.map(() => randomUUID()),
     milestones: (
@@ -127,12 +134,21 @@ export async function createProject(
     deliverables: (
       input.deliverables ?? [{ title: 'Final outcome & reflection', required: true }]
     ).map((item) => ({ ...item, id: randomUUID() })),
-  });
+  };
+  await repository.saveStructure(client, id, initialStructure);
   await repository.event(client, id, userId, 'PROJECT_CREATED', {
     projectType: input.projectType,
     approvalRoute: input.approvalRoute,
     template: input.templateKey,
     templateVersion: template?.version ?? 1,
+    schedule: {
+      dueDate: input.dueDate ?? null,
+      timezone: input.timezone ?? null,
+      milestones: initialStructure.milestones.map((m) => ({
+        id: m.id,
+        dueDate: m.dueDate ?? null,
+      })),
+    },
   });
 
   return getProject(client, id, userId);
@@ -152,6 +168,8 @@ export async function updateDraft(
   const before = {
     title: project.title,
     description: project.description,
+    dueDate: project.dueDate ?? null,
+    timezone: project.timezone ?? null,
     ...(await repository.structure(client, id)),
   };
 
@@ -169,6 +187,13 @@ export async function updateDraft(
     ),
   };
 
+  validateSchedule(
+    {
+      dueDate: input.dueDate === undefined ? project.dueDate : input.dueDate,
+      timezone: input.timezone === undefined ? project.timezone : input.timezone,
+    },
+    structure.milestones,
+  );
   await repository.updateBrief(client, id, input);
   await repository.saveStructure(client, id, structure);
   await repository.touch(client, id);
@@ -271,6 +296,7 @@ export async function acceptInvitation(
 
   await repository.addMember(client, id, userId, invitation.role);
   await repository.consumeInvitation(client, invitation.id);
+  await invalidatePending(client, id, userId);
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'INVITATION_ACCEPTED', {
     invitationId: invitation.id,
@@ -327,6 +353,8 @@ export async function submitProposal(
     {
       title: project.title,
       description: project.description,
+      dueDate: project.dueDate ?? null,
+      timezone: project.timezone ?? null,
       ...(await repository.structure(client, id)),
     },
     userId,

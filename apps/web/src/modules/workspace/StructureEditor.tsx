@@ -3,14 +3,16 @@ export type StructureItem = {
   id?: string;
   title: string;
   required: boolean;
+  dueDate?: string | null;
   objectiveIds?: string[] | undefined;
   expectedEvidence?: { id?: string; key?: string; title: string; required: boolean }[] | undefined;
 };
 export function structurePayload(items: StructureItem[]) {
-  return items.map(({ id, title, required, objectiveIds, expectedEvidence }) => ({
+  return items.map(({ id, title, required, dueDate, objectiveIds, expectedEvidence }) => ({
     ...(id ? { id } : {}),
     title: title.trim(),
     required,
+    ...(dueDate !== undefined ? { dueDate } : {}),
     ...(objectiveIds ? { objectiveIds } : {}),
     ...(expectedEvidence
       ? {
@@ -80,6 +82,25 @@ export function StructureEditor({
             />
             {label} {index + 1} required
           </label>
+          {label === 'Milestone' && (
+            <label>
+              Milestone {index + 1} due date (optional)
+              <input
+                type="date"
+                value={item.dueDate ?? ''}
+                disabled={!allowStructure}
+                onChange={(event) =>
+                  onChange(
+                    items.map((entry) =>
+                      entry.key === item.key
+                        ? { ...entry, dueDate: event.target.value || null }
+                        : entry,
+                    ),
+                  )
+                }
+              />
+            </label>
+          )}
           {label === 'Milestone' && objectives && (
             <details>
               <summary>Objectives and expected evidence</summary>

@@ -1,3 +1,5 @@
+import { projectChangedEvent } from '../notifications/action-toast';
+import { DeadlineLabel, dateLabel } from '../deadlines/DeadlineLabel';
 import { ProjectCoverage } from '../evidence-coverage/ProjectCoverage';
 import { ProjectChanges } from '../changes/ProjectChanges';
 import { ArrowLeft, ArrowUpRight, CalendarDays } from 'lucide-react';
@@ -31,9 +33,15 @@ function ProjectContent({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    const refresh = () => setAttempt((n) => n + 1);
+    window.addEventListener(projectChangedEvent, refresh);
+    return () => window.removeEventListener(projectChangedEvent, refresh);
+  }, []);
+  useEffect(() => {
     const controller = new AbortController();
     api(`/${id}`, detailSchema, { signal: controller.signal })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setProject(data);
         setError('');
       })
@@ -109,7 +117,11 @@ function ProjectContent({ id }: { id: string }) {
             </Badge>
             <span>
               <CalendarDays size={15} />
-              No due date
+              <DeadlineLabel
+                dueDate={project.dueDate}
+                timezone={project.timezone}
+                deadline={project.deadline}
+              />
             </span>
             <span>
               Your role:{' '}
@@ -128,7 +140,7 @@ function ProjectContent({ id }: { id: string }) {
           <Link
             className="button secondary"
             to={`/projects/${id}/portfolio`}
-            title="Demo portfolio preview"
+            title="Project process portfolio"
           >
             Process portfolio <ArrowUpRight size={16} />
           </Link>
@@ -260,9 +272,11 @@ function ProjectContent({ id }: { id: string }) {
                   submit or approve here.
                 </p>
                 <p>
-                  {project.status === 'ACTIVE'
-                    ? 'The project is active. Authors submit evidence within each milestone; the main Reviewer reviews that work and provides feedback there.'
-                    : 'The project activates when its Author or lead and main Reviewer have joined.'}
+                  {project.status === 'COMPLETED'
+                    ? 'The main Reviewer has approved final completion. The milestone reviews and final decision remain available in this project.'
+                    : ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)
+                      ? 'The project is active. Authors submit evidence within each milestone; the main Reviewer reviews that work and provides feedback there.'
+                      : 'The project activates when its Author or lead and main Reviewer have joined.'}
                 </p>
                 <button
                   className="button secondary"
@@ -296,6 +310,10 @@ function ProjectContent({ id }: { id: string }) {
                     </summary>
                     <h3>{proposal.structure.title}</h3>
                     <p>{proposal.structure.description}</p>
+                    <p>
+                      Project deadline: {dateLabel(proposal.structure.dueDate)}
+                      {proposal.structure.timezone ? ` · ${proposal.structure.timezone}` : ''}
+                    </p>
                     <h4>Objectives</h4>
                     <ul>
                       {proposal.structure.objectives.map((o, i) => (
@@ -307,7 +325,7 @@ function ProjectContent({ id }: { id: string }) {
                       {proposal.structure.milestones.map((m) => (
                         <li key={m.id}>
                           {m.title}
-                          {m.required ? ' (required)' : ' (optional)'}
+                          {m.required ? ' (required)' : ' (optional)'} · {dateLabel(m.dueDate)}
                           {m.objectiveIds?.map((id) => (
                             <p key={id}>
                               Supports:{' '}

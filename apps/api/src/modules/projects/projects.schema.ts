@@ -1,3 +1,4 @@
+import { dueDateSchema, timezoneSchema } from '../deadlines/deadlines.schema.js';
 import { z } from 'zod';
 
 const title = z.string().trim().min(1).max(120);
@@ -9,6 +10,7 @@ export const milestoneItemSchema = z
     id: z.uuid().optional(),
     title,
     required: z.boolean(),
+    dueDate: dueDateSchema,
     objectiveIds: z.array(z.uuid()).max(20).optional(),
     expectedEvidence: z.array(requirementSchema).max(30).optional(),
   })
@@ -16,6 +18,8 @@ export const milestoneItemSchema = z
 const startingItem = z.object({ title, required: z.boolean() }).strict();
 
 export const briefSchema = z.object({
+  dueDate: dueDateSchema,
+  timezone: timezoneSchema,
   title,
   description: z.string().trim().min(1).max(2000),
   objectives: z.array(z.string().trim().min(1).max(500)).min(1).max(20),

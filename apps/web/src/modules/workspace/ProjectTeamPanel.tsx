@@ -93,7 +93,7 @@ export function ProjectTeamPanel({
           </div>
           {lead &&
           project.project_type === 'GROUP' &&
-          project.status !== 'PROPOSAL_REJECTED' &&
+          !['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status) &&
           m.role === 'AUTHOR' ? (
             <div className="inline-actions">
               <button
@@ -195,7 +195,7 @@ export function ProjectTeamPanel({
           </form>
         </Modal>
       )}
-      {roles.length > 0 && project.status !== 'PROPOSAL_REJECTED' && (
+      {roles.length > 0 && !['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status) && (
         <form onSubmit={(e) => void invite(e)} className="live-inline-form">
           <h3>Invite someone</h3>
           <label>
@@ -257,20 +257,23 @@ export function ProjectTeamPanel({
                   : `Expires ${new Date(i.expires_at).toLocaleDateString()}`}
               </small>
             </div>
-            {roles.includes(i.role as 'AUTHOR' | 'LEAD_AUTHOR' | 'MAIN_REVIEWER') && (
-              <button
-                disabled={busy}
-                className="button secondary small"
-                onClick={() =>
-                  void run(async () => {
-                    await api(`/${project.id}/invitations/${i.id}`, z.null(), { method: 'DELETE' });
-                    setLink('');
-                  })
-                }
-              >
-                Cancel invitation
-              </button>
-            )}
+            {project.status !== 'COMPLETED' &&
+              roles.includes(i.role as 'AUTHOR' | 'LEAD_AUTHOR' | 'MAIN_REVIEWER') && (
+                <button
+                  disabled={busy}
+                  className="button secondary small"
+                  onClick={() =>
+                    void run(async () => {
+                      await api(`/${project.id}/invitations/${i.id}`, z.null(), {
+                        method: 'DELETE',
+                      });
+                      setLink('');
+                    })
+                  }
+                >
+                  Cancel invitation
+                </button>
+              )}
           </div>
         ))}
     </section>

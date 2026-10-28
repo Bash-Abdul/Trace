@@ -1,7 +1,9 @@
+import { FinalApprovalPanel } from '../../final-approval/FinalApprovalPanel';
+import { Link } from 'react-router-dom';
 import { HelpHint } from '../../../shared/ui/HelpHint';
-import { CircleCheck, FileCheck2 } from 'lucide-react';
+import { FileCheck2 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { CheckItem, MilestoneProgress, SectionHeading } from '../../../shared/ui/Primitives';
+import { MilestoneProgress, SectionHeading } from '../../../shared/ui/Primitives';
 import type { ProjectDetail } from '../../workspace/workspace-api';
 import { LiveMilestoneList } from './LiveMilestoneList';
 import { progressMilestones } from './live-project-presentation';
@@ -14,7 +16,6 @@ export function LiveProjectOverview({
   children?: ReactNode;
 }) {
   const progress = project.progress;
-  const required = progress?.milestones.filter((m) => m.required);
   return (
     <div className="project-overview-grid">
       <div>
@@ -79,9 +80,9 @@ export function LiveProjectOverview({
             <FileCheck2 size={18} />
             Final deliverables{' '}
             <HelpHint label="Final deliverables">
-              The final outputs promised in your project plan. Their submission flow is coming
-              later; milestone evidence does not automatically count as a submitted final
-              deliverable.
+              The final outputs promised in your project plan. Authors prepare drafts; the lead
+              submits each version. Submitting these outputs does not complete the project or
+              replace final approval.
             </HelpHint>
           </h2>
           {project.deliverables.map((d) => (
@@ -91,32 +92,34 @@ export function LiveProjectOverview({
               </span>
               <div>
                 <strong>{d.title}</strong>
-                <small>{d.required ? 'Required' : 'Optional'} · Submission coming soon</small>
+                <small>
+                  {d.required ? 'Required' : 'Optional'} ·{' '}
+                  {project.progress?.deliverables?.find((item) => item.id === d.id)?.state ===
+                  'SUBMITTED'
+                    ? 'Submitted'
+                    : project.progress?.deliverables?.find((item) => item.id === d.id)?.state ===
+                        'DRAFT'
+                      ? 'Draft · not submitted'
+                      : 'Not submitted yet'}
+                </small>
+                <Link className="text-button" to={`/projects/${project.id}/deliverables/${d.id}`}>
+                  Open deliverable
+                </Link>
               </div>
             </div>
           ))}
+          {project.archived_deliverables.length > 0 && (
+            <details>
+              <summary>Removed deliverable history</summary>
+              {project.archived_deliverables.map((d) => (
+                <p key={d.id}>
+                  <Link to={`/projects/${project.id}/deliverables/${d.id}`}>{d.title}</Link>
+                </p>
+              ))}
+            </details>
+          )}
         </div>
-        <div className="panel completion-panel">
-          <h2>
-            <CircleCheck size={18} />
-            Ready for the finish line?
-          </h2>
-          <CheckItem done={!!required && required.every((m) => m.state === 'APPROVED')}>
-            All required milestones approved
-          </CheckItem>
-          <CheckItem done={false}>Required deliverables submitted</CheckItem>
-          <CheckItem done={!!progress && progress.blocking_feedback === 0}>
-            Blocking feedback resolved{' '}
-            <HelpHint label="Blocking feedback">
-              This checklist tracks feedback flagged as blocking. The flag does not currently
-              prevent milestone approval, and final-project approval is not implemented yet.
-            </HelpHint>
-          </CheckItem>
-          <button className="button secondary full-width" disabled>
-            Request final approval
-          </button>
-          <small>Final deliverable submission and final approval are coming soon.</small>
-        </div>
+        <FinalApprovalPanel project={project} />
       </aside>
     </div>
   );

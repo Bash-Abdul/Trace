@@ -182,7 +182,7 @@ export function AppShell() {
             <span className="demo-chip">
               <span />
               {location.pathname.startsWith('/demo') ||
-              ['/portfolio', '/activity', '/settings'].includes(location.pathname)
+              ['/activity', '/settings'].includes(location.pathname)
                 ? 'Demo preview'
                 : 'Live workspace'}
             </span>

@@ -1,3 +1,4 @@
+import { dateLabel } from '../deadlines/DeadlineLabel';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
@@ -17,6 +18,10 @@ function Structure({
   return (
     <>
       <h4>{value.title}</h4>
+      <p>
+        Project deadline: {dateLabel(value.dueDate)}
+        {value.timezone ? ` · ${value.timezone}` : ''}
+      </p>
       <p>{value.description}</p>
       <h4>Objectives</h4>
       <ol>
@@ -28,7 +33,7 @@ function Structure({
       <ol>
         {value.milestones.map((m) => (
           <li key={m.id}>
-            {m.title} · {m.required ? 'Required' : 'Optional'}
+            {m.title} · {m.required ? 'Required' : 'Optional'} · {dateLabel(m.dueDate)}
             {m.objectiveIds?.map((id) => (
               <p key={id}>
                 Supports: {value.objectives[value.objectiveIds?.indexOf(id) ?? -1] ?? 'Objective'}
@@ -85,7 +90,7 @@ export function ProjectChanges({
   }, [api, project.id, project.version, attempt]);
   const author = ['LEAD_AUTHOR', 'AUTHOR'].includes(project.role);
   const lead = project.role === 'LEAD_AUTHOR';
-  const active = project.status === 'ACTIVE';
+  const active = ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status);
   const open = changes?.find((c) => ['DRAFT', 'PROPOSED'].includes(c.state));
   async function act(change: Change, action: string, body: object = {}) {
     await run(() =>
@@ -245,9 +250,10 @@ export function ProjectChanges({
             <form onSubmit={(e) => void decide(e, change)}>
               <p>
                 Approval applies the proposed plan. Removed milestones keep their history. Changed
-                milestone requirements need fresh approval; changes to the brief or objectives
-                require fresh approval for retained milestones. Affected submissions awaiting review
-                must be decided first.
+                milestone requirements need fresh approval and changed deliverables need
+                resubmission; date-only changes preserve existing approvals; changes to the brief or
+                objectives require fresh approval for retained milestones. Affected submissions
+                awaiting review must be decided first.
               </p>
               <label>
                 Project change decision

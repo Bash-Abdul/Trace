@@ -13,7 +13,7 @@ export interface QueueRecord {
   updated_at: Date;
 }
 export type QueueKind =
-  'PROJECT_CHANGE' | 'PROPOSAL' | 'MILESTONE_SUBMISSION' | 'MILESTONE_FEEDBACK';
+  'FINAL_APPROVAL' | 'PROJECT_CHANGE' | 'PROPOSAL' | 'MILESTONE_SUBMISSION' | 'MILESTONE_FEEDBACK';
 export interface QueueItem extends QueueRecord {
   kind: QueueKind;
   perspective: 'author' | 'reviewer';

@@ -1,3 +1,4 @@
+import { ScheduleFields } from '../deadlines/ScheduleFields';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useProjectApi } from './use-project-api';
@@ -49,6 +50,8 @@ export function CreateProjectPage() {
       const project = await api('', detailSchema, {
         method: 'POST',
         body: {
+          dueDate: data.get('dueDate') || null,
+          timezone: data.get('timezone') || null,
           title: data.get('title'),
           description: data.get('description'),
           objectives: String(data.get('objectives'))
@@ -158,6 +161,10 @@ export function CreateProjectPage() {
             Templates are starting points. Edit your copy below; switching templates resets the
             milestone and deliverable fields.
           </p>
+          <ScheduleFields
+            timezone={Intl.DateTimeFormat().resolvedOptions().timeZone}
+            disabled={busy}
+          />
           <StructureEditor
             label="Milestone"
             items={milestones}

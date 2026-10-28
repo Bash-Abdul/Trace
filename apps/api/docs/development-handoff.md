@@ -2,6 +2,108 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Process portfolio and completion checkpoint — October 27, 2026
+
+Issue #13 is implemented using the original demo portfolio layout. `/portfolio` lists current
+account projects and `/projects/:projectId/portfolio` opens the authenticated live/final document.
+Original sample portfolios remain under `/demo/projects/:projectId/portfolio`. The portfolio covers
+metadata/activation, attribution, proposal versions, milestone evidence/history, feedback/replies,
+plan changes, final deliverable versions, readiness/final checklist and activity. Printing uses the
+browser and existing A4 styles. Private file/image integration remains #2.
+
+New completions atomically capture a version-2 manifest with frozen record data and a full timeline.
+Older manifests remain readable by their saved identifiers. Current membership is checked on every
+read, including final records. See [process-portfolio.md](./process-portfolio.md).
+
+This checkpoint includes optional due dates (#10), final deliverables (#11), final approval (#12)
+and portfolio (#13), plus final-request invalidation for earlier change/group/coverage features.
+Verified checkpoint for `origin/test` and reconciliation of completed issues #7–#13 on roadmap #19.
+`pnpm verify` passed formatting, lint, type checking, 61 API unit tests, 101 database integration
+tests, 8 web unit tests and both builds. All 17 controlled browser tests and all 3 live API/browser
+flows passed, including portfolio access, completion, mobile layout and browser PDF generation.
+The high-severity dependency audit passed; five moderate advisories remain. The web build retains
+its bundle-size warning. Remaining work follows #14/#15 and the existing upload/email/release issues;
+reviewer handover (#17) stays last. Then review/polish the MVP with the owner before deployment.
+
+## Final approval and completion — October 27, 2026
+
+Issue #12 is implemented locally in the original finish-line panel. Required milestone approvals,
+current required deliverable submissions, required-evidence omissions, blocking feedback, proposed
+major changes and current main-Reviewer membership determine readiness. Optional dates never gate
+completion. Current templates define no additional declarations; none were invented.
+
+The individual Author/group lead requests or withdraws approval. The current main Reviewer can
+approve or request revision with feedback. Pending requests preserve an immutable checklist/plan
+and exact submission IDs. Authorized changes to work, feedback, plan or accepted membership invalidate
+pending requests. Decision handling rechecks authority and snapshot equality under the shared
+project lock. Request/decision retry keys prevent duplicate history, events and notifications.
+
+Completion, decision, audit, in-app notifications and the final portfolio manifest commit atomically.
+Completed projects are read-only, appear under the Completed filter and retain all prior histories.
+The review queue and notifications link to final approval. The approved snapshot is ready for the
+next increment: authenticated live/printable portfolio rendering (#13). See [final-approval.md](./final-approval.md).
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 61 API unit tests,
+97 database integration tests, 8 web unit tests and both builds. All 17 controlled browser tests
+and all three live API/browser flows passed, including final-request invalidation, revision,
+completion, read-only outputs and the Completed filter. The applied migration is `1793140000000_final-approval` in isolated test and local development
+databases. The existing web bundle-size warning remains.
+This increment, optional dates and deliverables remain local and uncommitted on `test`.
+Reviewer handover (#17) remains last; host after the main product work, then do the broader cleanup.
+
+## Final deliverable submissions — October 27, 2026
+
+Issue #11 now has shared text/link drafts, lead-only submission, immutable attributed versions,
+explicit revisions, archived requirement history and in-app notifications. The original project
+Overview's final-deliverables panel opens the connected output page. Required submission status
+feeds the existing checklist. See [final-deliverables.md](./final-deliverables.md).
+
+All mutations use the existing authenticated transaction and project lock. Optimistic versions
+reject stale edits; current membership and roles are checked after locking. Changed requirements
+require resubmission, while reordering and date-only changes retain current submissions. Saves
+with unchanged content retain the previous editor attribution.
+
+Final requests/decisions do not exist yet. Issue #12 must bind requests to exact submitted versions,
+invalidate pending requests when applicable work changes, enforce required milestone/evidence/
+deliverable and blocking-feedback conditions, and allow only the current main Reviewer to approve.
+Deliverable submission alone never completes a project. Reviewer handover (#17) remains last.
+
+`pnpm verify` passed formatting, lint, types, 61 API unit tests, 90 integration tests,
+8 web unit tests and both builds. All 17 controlled browser tests and both live API/browser
+flows passed. The live test caught ambiguous labels on prefilled draft inputs; explicit label
+associations fixed them, and web types/lint/build passed again. The mobile submission/history
+view was inspected with no horizontal overflow. The deliverables migration is applied to the
+isolated test and local development databases. The existing web bundle-size warning remains.
+
+Due dates and deliverables remain local and uncommitted on `test`; the last pushed checkpoint
+is `39899ac`. Next product increment: final checklist, approval and completion (#12).
+
+## Optional due dates — October 27, 2026
+
+The membership/coverage checkpoint is committed and pushed to `origin/test` as `39899ac`.
+The owner wants the main product work completed, then hosted online, followed by a dedicated
+cleanup pass. Preserve the original demo presentation and avoid unrelated refactoring now.
+Reviewer handover (#17) remains the last planned feature.
+
+Issue #10 adds optional project and milestone dates. The owner confirmed on October 26:
+project timezone (suggested from the creator's browser), end-of-local-day deadlines,
+next-seven-calendar-days due-soon state, and informational overdue status. No date is required;
+existing projects receive no invented dates/timezone. See [optional-due-dates.md](./optional-due-dates.md).
+
+Dates appear in the existing creation/brief forms, project cards, milestone views and the
+live dashboard schedule. Active-project date/timezone changes use the existing major change
+review flow. Date-only changes preserve milestone approvals. Original schedules, proposals,
+change snapshots and new milestone submissions preserve their dates/timezone in history.
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 61 API unit tests,
+85 database integration tests, 8 web unit tests and both builds. All 17 controlled browser
+tests and both live API/browser flows passed. The mobile live-date panel was inspected.
+Migration `1792971000000_optional-due-dates` is applied to isolated test and local development
+databases. Existing dates remain unset. The existing web bundle-size warning remains.
+
+The due-date increment remains local and uncommitted. Next product increment is final deliverable
+submissions and versions (#11), followed by final checklist/approval/completion (#12).
+
 ## Evidence requirements and coverage — October 26, 2026
 
 Issue #9 is implemented locally: stable objective identities, milestone-owned expected evidence,

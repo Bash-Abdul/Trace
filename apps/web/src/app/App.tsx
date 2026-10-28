@@ -1,3 +1,5 @@
+import { LivePortfolioIndex, LivePortfolioPage } from '../modules/portfolio/LivePortfolioPage';
+import { LiveDeliverablePage } from '../modules/deliverables/LiveDeliverablePage';
 import { ReviewQueuePage } from '../modules/reviews/ReviewQueuePage';
 import type { ReactNode } from 'react';
 import { LiveMilestonePage } from '../modules/milestones/LiveMilestonePage';
@@ -7,7 +9,7 @@ import { DemoProjectsPage } from '../modules/projects/pages/DemoProjectsPage';
 import { NewProjectPage } from '../modules/projects/pages/NewProjectPage';
 import { ProjectPage } from '../modules/projects/pages/ProjectPage';
 import { MilestonePage } from '../modules/submissions/MilestonePage';
-import { PortfolioIndex, PortfolioPage } from '../modules/portfolio/PortfolioPage';
+import { PortfolioPage } from '../modules/portfolio/PortfolioPage';
 import { ActivityPage } from '../modules/activity/ActivityList';
 import { SettingsPage } from '../modules/settings/SettingsPage';
 import { ReviewsPage } from '../modules/feedback/FeedbackPanel';
@@ -62,6 +64,10 @@ export function App() {
               path="projects/:projectId/milestones/:milestoneId"
               element={<LiveMilestonePage />}
             />
+            <Route
+              path="projects/:projectId/deliverables/:deliverableId"
+              element={<LiveDeliverablePage />}
+            />
             <Route path="reviews" element={<ReviewQueuePage />} />
             <Route
               path="demo/reviews"
@@ -87,22 +93,8 @@ export function App() {
                 </DemoPreview>
               }
             />
-            <Route
-              path="portfolio"
-              element={
-                <DemoPreview>
-                  <PortfolioIndex />
-                </DemoPreview>
-              }
-            />
-            <Route
-              path="projects/:projectId/portfolio"
-              element={
-                <DemoPreview>
-                  <PortfolioIndex />
-                </DemoPreview>
-              }
-            />
+            <Route path="portfolio" element={<LivePortfolioIndex />} />
+            <Route path="projects/:projectId/portfolio" element={<LivePortfolioPage />} />
             <Route
               path="demo/projects"
               element={

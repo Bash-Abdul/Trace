@@ -1,3 +1,4 @@
+import { DeadlineLabel } from '../deadlines/DeadlineLabel';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -40,9 +41,37 @@ export function DashboardPage() {
     (item) => item.perspective === persona && item.kind === 'MILESTONE_FEEDBACK',
   ).length;
   const approved = milestones.filter((m) => m.status === 'approved').length;
-  const next = milestones
-    .filter((m) => m.status !== 'approved')
-    .sort((a, b) => a.due.localeCompare(b.due))
+  const next = realProjects
+    .filter((p) => p.status !== 'PROPOSAL_REJECTED')
+    .flatMap((project) => [
+      ...(project.dueDate
+        ? [
+            {
+              key: project.id,
+              title: 'Project deadline',
+              dueDate: project.dueDate,
+              project,
+              deadline: project.deadline,
+              href: `/projects/${project.id}`,
+            },
+          ]
+        : []),
+      ...(project.progress?.milestones ?? []).flatMap((m) =>
+        m.dueDate && m.state !== 'APPROVED'
+          ? [
+              {
+                key: m.id,
+                title: m.title ?? 'Milestone',
+                dueDate: m.dueDate,
+                project,
+                deadline: m.deadline,
+                href: `/projects/${project.id}/milestones/${m.id}`,
+              },
+            ]
+          : [],
+      ),
+    ])
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.key.localeCompare(b.key))
     .slice(0, 3);
   const activity = projects
     .flatMap((p) => p.activity.map((a) => ({ ...a, project: p })))
@@ -241,19 +270,22 @@ export function DashboardPage() {
         </div>
         <aside className="dashboard-aside">
           <section className="panel upcoming-panel">
-            <SectionHeading title="Coming up · Demo preview" />
-            <p className="panel-subtitle">Sample schedule; live due dates are not connected yet.</p>
+            <SectionHeading title="Coming up" />
+            <p className="panel-subtitle">
+              Optional project and milestone dates, including overdue work.
+            </p>
+            {next.length === 0 && (
+              <p className="panel-subtitle">
+                No scheduled dates. You can add optional dates in the project brief.
+              </p>
+            )}
             {next.map((item) => (
-              <Link
-                className="upcoming-item"
-                key={`${item.project.id}-${item.id}`}
-                to={`/demo/projects/${item.project.id}/milestones/${item.id}`}
-              >
+              <Link className="upcoming-item" key={`${item.project.id}-${item.key}`} to={item.href}>
                 <div className="date-tile">
-                  <strong>{new Date(item.due).getDate()}</strong>
+                  <strong>{Number(item.dueDate.slice(8, 10))}</strong>
                   <span>
-                    {new Date(item.due)
-                      .toLocaleDateString('en-GB', { month: 'short' })
+                    {new Date(`${item.dueDate}T12:00:00Z`)
+                      .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })
                       .toUpperCase()}
                   </span>
                 </div>
@@ -261,13 +293,13 @@ export function DashboardPage() {
                   <strong>{item.title}</strong>
                   <small>{item.project.title}</small>
                   <span
-                    className={`due-label ${item.status === 'revision-requested' ? 'due-amber' : ''}`}
+                    className={`due-label ${item.deadline?.state === 'OVERDUE' ? 'due-amber' : ''}`}
                   >
-                    {item.status === 'revision-requested'
-                      ? 'Revision requested'
-                      : item.status === 'awaiting-review'
-                        ? 'With reviewer'
-                        : 'Next milestone'}
+                    <DeadlineLabel
+                      dueDate={item.dueDate}
+                      timezone={item.project.timezone}
+                      deadline={item.deadline}
+                    />
                   </span>
                 </div>
               </Link>

@@ -1,3 +1,4 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
 import type { PoolClient } from 'pg';
 import { conflict, forbidden, notFound } from '../../utils/app-error.js';
 import * as projects from '../projects/projects.repository.js';
@@ -17,7 +18,8 @@ async function context(
   if (project.project_type !== 'GROUP' || project.role !== 'LEAD_AUTHOR') {
     throw forbidden('Only the lead Author of a group project can manage Authors.');
   }
-  if (project.status === 'PROPOSAL_REJECTED') throw conflict('This project was rejected.');
+  if (['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status))
+    throw conflict('This project was rejected.');
   if (project.version !== input.version)
     throw conflict('The team or project changed. Reload before continuing.', 'PROJECT_STALE');
   const target = await repository.member(db, params.projectId, params.userId);
@@ -44,6 +46,7 @@ export async function remove(
     params.userId,
   );
   const details = { userId: params.userId, reason: input.reason, cancelledInvitationIds };
+  await invalidatePending(db, params.projectId, actorId);
   await projects.touch(db, params.projectId);
   await projects.event(db, params.projectId, actorId, 'GROUP_AUTHOR_REMOVED', details);
   await enqueue(
@@ -80,6 +83,7 @@ export async function transferLead(
     reason: input.reason,
     cancelledInvitationIds,
   };
+  await invalidatePending(db, params.projectId, actorId);
   await projects.touch(db, params.projectId);
   await projects.event(db, params.projectId, actorId, 'GROUP_LEAD_TRANSFERRED', details);
   await enqueue(

@@ -1,3 +1,6 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
+import { invalidate as invalidateDeliverables } from '../deliverables/deliverables.repository.js';
+import { validateSchedule } from '../deadlines/deadlines.service.js';
 import {
   resolveObjectives,
   resolveMilestoneCoverage,
@@ -29,7 +32,7 @@ async function member(db: PoolClient, id: string, userId: string, roles: Role[])
   if (!project) throw notFound('Project not found');
   if (!roles.includes(project.role))
     throw forbidden('Your project role does not allow this change.');
-  if (project.status !== 'ACTIVE')
+  if (!['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status))
     throw conflict('Changes are available only for active projects.');
   return project;
 }
@@ -37,6 +40,8 @@ async function snapshot(db: PoolClient, project: MemberProject): Promise<Proposa
   return {
     title: project.title,
     description: project.description,
+    dueDate: project.dueDate ?? null,
+    timezone: project.timezone ?? null,
     ...(await projects.structure(db, project.id)),
   };
 }
@@ -56,7 +61,9 @@ function items(
 }
 function proposed(input: ChangeInput, known: ProposalSnapshot): ProposalSnapshot {
   const objectiveIds = resolveObjectives(input, known);
-  return {
+  const result = {
+    dueDate: input.dueDate === undefined ? (known.dueDate ?? null) : input.dueDate,
+    timezone: input.timezone === undefined ? (known.timezone ?? null) : input.timezone,
     objectiveIds,
     title: input.title,
     description: input.description,
@@ -72,22 +79,38 @@ function proposed(input: ChangeInput, known: ProposalSnapshot): ProposalSnapshot
       required,
     })),
   };
+  validateSchedule(result, result.milestones);
+  return result;
 }
 // Older saved change proposals predate stable objective IDs and evidence requirements.
 // Compare their original fields only when the current plan still has no coverage links.
 function matchesSnapshot(saved: ProposalSnapshot, current: ProposalSnapshot): boolean {
-  if (saved.objectiveIds) return isDeepStrictEqual(saved, current);
+  const dated = (value: ProposalSnapshot) => ({
+    ...value,
+    dueDate: value.dueDate ?? null,
+    timezone: value.timezone ?? null,
+    milestones: value.milestones.map((m) => ({ ...m, dueDate: m.dueDate ?? null })),
+  });
+  if (saved.objectiveIds) return isDeepStrictEqual(dated(saved), dated(current));
   if (current.milestones.some((m) => m.objectiveIds?.length || m.expectedEvidence?.length))
     return false;
   const plain = (items: StructureItem[]) =>
     items.map(({ id, title, required }) => ({ id, title, required }));
-  return isDeepStrictEqual(saved, {
-    title: current.title,
-    description: current.description,
-    objectives: current.objectives,
-    milestones: plain(current.milestones),
-    deliverables: plain(current.deliverables),
-  });
+  return isDeepStrictEqual(
+    dated(saved),
+    dated({
+      title: current.title,
+      description: current.description,
+      objectives: current.objectives,
+      milestones: plain(current.milestones).map((m) => ({
+        ...m,
+        dueDate: current.milestones.find((i) => i.id === m.id)?.dueDate ?? null,
+      })),
+      deliverables: plain(current.deliverables),
+      dueDate: current.dueDate ?? null,
+      timezone: current.timezone ?? null,
+    }),
+  );
 }
 function changed(before: ProposalSnapshot, after: ProposalSnapshot) {
   if (isDeepStrictEqual(before, after)) throw badRequest('Make a change before saving.');
@@ -112,6 +135,7 @@ async function record(
   details: object,
   roles: Role[],
 ) {
+  await invalidatePending(db, projectId, userId);
   await projects.touch(db, projectId);
   await projects.event(db, projectId, userId, action, details);
   await enqueue(db, projectId, userId, action, roles, details);
@@ -135,8 +159,10 @@ export async function minor(db: PoolClient, projectId: string, userId: string, i
     throw badRequest('Reordering objectives needs a major change proposal.');
   }
   const shape = (entries: StructureItem[]) =>
-    entries.map((i) => ({ id: i.id, required: i.required }));
+    entries.map((i) => ({ id: i.id, required: i.required, dueDate: i.dueDate ?? null }));
   if (
+    (before.dueDate ?? null) !== after.dueDate ||
+    (before.timezone ?? null) !== after.timezone ||
     !isDeepStrictEqual(before.objectiveIds, after.objectiveIds) ||
     !isDeepStrictEqual(
       before.milestones.map((m) => ({
@@ -153,7 +179,7 @@ export async function minor(db: PoolClient, projectId: string, userId: string, i
     !isDeepStrictEqual(shape(before.deliverables), shape(after.deliverables))
   ) {
     throw badRequest(
-      'Adding, removing, reordering or changing requiredness needs a major change proposal.',
+      'Adding, removing, reordering, changing requiredness or changing dates/timezone needs a major change proposal.',
     );
   }
   changed(before, after);
@@ -248,12 +274,15 @@ export async function act(
       );
   }
   let invalidated: string[] = [];
+  let invalidatedDeliverables: string[] = [];
   if (action === 'APPROVE') {
     const before = currentStructure!;
     const objectiveIds =
       change.after_structure.objectiveIds ?? resolveObjectives(change.after_structure, before);
     const after = {
       ...change.after_structure,
+      dueDate: change.after_structure.dueDate ?? null,
+      timezone: change.after_structure.timezone ?? null,
       objectiveIds,
       milestones: resolveMilestoneCoverage(
         change.after_structure.milestones,
@@ -297,6 +326,13 @@ export async function act(
       .filter((s) => retained.includes(s.id) && s.state === 'APPROVED')
       .map((s) => s.id);
     await repository.reviseMilestones(db, retained);
+    invalidatedDeliverables = before.deliverables
+      .filter((old) => {
+        const next = after.deliverables.find((d) => d.id === old.id);
+        return next && (scopeChanged || old.title !== next.title || old.required !== next.required);
+      })
+      .map((d) => d.id);
+    await invalidateDeliverables(db, invalidatedDeliverables);
   }
   const states: Record<typeof action, ChangeState> = {
     SUBMIT: 'PROPOSED',
@@ -313,7 +349,12 @@ export async function act(
     projectId,
     userId,
     `PROJECT_CHANGE_${action === 'SUBMIT' ? 'SUBMITTED' : action === 'WITHDRAW' ? 'WITHDRAWN' : 'DECIDED'}`,
-    { changeId: id, decision: action, invalidatedMilestoneIds: invalidated },
+    {
+      changeId: id,
+      decision: action,
+      invalidatedMilestoneIds: invalidated,
+      invalidatedDeliverableIds: invalidatedDeliverables,
+    },
     deciding ? ['LEAD_AUTHOR', 'AUTHOR'] : ['MAIN_REVIEWER'],
   );
 }

@@ -1,3 +1,5 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
+import { deadline } from '../deadlines/deadlines.service.js';
 import { snapshot as snapshotCoverage } from '../evidence-coverage/coverage.repository.js';
 import { isDeepStrictEqual } from 'node:util';
 import { enqueue } from '../notifications/notifications.repository.js';
@@ -27,7 +29,7 @@ async function member(
   if (!project) {
     throw notFound('Project not found');
   }
-  if (project.status !== 'ACTIVE') {
+  if (!['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)) {
     throw new AppError(
       422,
       'PROJECT_INACTIVE',
@@ -72,9 +74,11 @@ async function detail(client: PoolClient, params: MilestoneParams): Promise<Deta
   if (!milestone) {
     throw notFound('Milestone not found');
   }
+  const current = await repository.state(client, params.milestoneId);
   return {
     milestone,
-    ...(await repository.state(client, params.milestoneId)),
+    ...current,
+    deadline: deadline(milestone.dueDate, milestone.timezone, current.state),
     evidence: await repository.evidence(client, params.milestoneId),
     submissions: await repository.versions(client, params.milestoneId),
     feedback: await repository.feedback(client, params.milestoneId),
@@ -102,6 +106,7 @@ async function record(
   roles: Role[],
   details: object = {},
 ): Promise<void> {
+  await invalidatePending(client, params.projectId, userId);
   await projects.event(client, params.projectId, userId, action, {
     milestoneId: params.milestoneId,
     ...details,
@@ -217,6 +222,8 @@ export async function submit(
   }));
   const submissionId = await repository.submit(client, params.milestoneId, snapshot, userId);
   await snapshotCoverage(client, submissionId, {
+    dueDate: plan.dueDate ?? null,
+    timezone: current.project.timezone ?? null,
     objectives: (plan.objectiveIds ?? []).map((id) => ({
       id,
       title: structure.objectives[structure.objectiveIds!.indexOf(id)]!,

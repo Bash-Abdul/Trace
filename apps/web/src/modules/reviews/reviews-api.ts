@@ -14,7 +14,13 @@ export const queueSchema = z.object({
       body: z.string().nullable(),
       blocking: z.boolean(),
       updated_at: z.string(),
-      kind: z.enum(['PROJECT_CHANGE', 'PROPOSAL', 'MILESTONE_SUBMISSION', 'MILESTONE_FEEDBACK']),
+      kind: z.enum([
+        'FINAL_APPROVAL',
+        'PROJECT_CHANGE',
+        'PROPOSAL',
+        'MILESTONE_SUBMISSION',
+        'MILESTONE_FEEDBACK',
+      ]),
       perspective: z.enum(['author', 'reviewer']),
       needs_attention: z.boolean(),
       action: z.string(),
@@ -23,6 +29,7 @@ export const queueSchema = z.object({
 });
 export type ReviewItem = z.infer<typeof queueSchema>['items'][number];
 export const kindLabels = {
+  FINAL_APPROVAL: 'Final project approval',
   PROJECT_CHANGE: 'Project change review',
   PROPOSAL: 'Proposal review',
   MILESTONE_SUBMISSION: 'Milestone review',

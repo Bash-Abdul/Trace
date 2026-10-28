@@ -22,9 +22,25 @@ import type {
 // Shared read projection for cards and detail. Correlated to the already authorised
 // project row, so summary data uses the same membership check and database snapshot.
 const progressSql = `jsonb_build_object(
+  'deliverables', COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', d.id, 'required', d.required, 'state', COALESCE(draft.state, 'NOT_STARTED'),
+      'currentSubmissionId', CASE WHEN draft.state = 'SUBMITTED' THEN submitted.id ELSE NULL END,
+      'number', submitted.number
+    ) ORDER BY d.position)
+    FROM project_deliverables d
+    LEFT JOIN deliverable_drafts draft ON draft.deliverable_id = d.id
+    LEFT JOIN LATERAL (
+      SELECT id, number FROM deliverable_submission_versions
+      WHERE deliverable_id = d.id ORDER BY number DESC LIMIT 1
+    ) submitted ON true
+    WHERE d.project_id = p.id AND d.archived_at IS NULL
+  ), '[]'::jsonb),
   'milestones', COALESCE((
     SELECT jsonb_agg(jsonb_build_object(
       'id', pm.id,
+      'title', pm.title,
+      'dueDate', pm.due_date::text,
       'required', pm.required,
       'state', COALESCE(ms.state, 'NOT_STARTED'),
       'evidence_count', (
@@ -96,8 +112,13 @@ export async function structure(client: PoolClient, id: string): Promise<Project
     ORDER BY position`,
     [id],
   );
-  const milestones = await client.query<{ id: string; title: string; required: boolean }>(
-    `SELECT id, title, required
+  const milestones = await client.query<{
+    id: string;
+    title: string;
+    required: boolean;
+    dueDate: string | null;
+  }>(
+    `SELECT id, title, required, due_date::text AS "dueDate"
     FROM project_milestones
     WHERE project_id = $1 AND archived_at IS NULL
     ORDER BY position`,
@@ -162,7 +183,8 @@ async function saveItems(
         (item ->> 'id')::uuid AS id,
         (ordinality - 1)::integer AS position,
         item ->> 'title' AS title,
-        (item ->> 'required')::boolean AS required
+        (item ->> 'required')::boolean AS required,
+        (item ->> 'dueDate')::date AS due_date
       FROM jsonb_array_elements($2::jsonb)
         WITH ORDINALITY AS v(item, ordinality)
     ),
@@ -171,17 +193,17 @@ async function saveItems(
       WHERE project_id = $1 AND archived_at IS NULL
         AND id NOT IN (SELECT id FROM incoming)
     )
-    INSERT INTO ${table} (id, project_id, position, title, required)
-    SELECT id, $1, position, title, required
+    INSERT INTO ${table} (id, project_id, position, title, required${table === 'project_milestones' ? ', due_date' : ''})
+    SELECT id, $1, position, title, required${table === 'project_milestones' ? ', due_date' : ''}
     FROM incoming
     ON CONFLICT (id) DO UPDATE
     SET
       position = EXCLUDED.position,
       title = EXCLUDED.title,
-      required = EXCLUDED.required
+      required = EXCLUDED.required${table === 'project_milestones' ? ', due_date = EXCLUDED.due_date' : ''}
     WHERE ${table}.project_id = EXCLUDED.project_id
-      AND (${table}.position, ${table}.title, ${table}.required)
-        IS DISTINCT FROM (EXCLUDED.position, EXCLUDED.title, EXCLUDED.required)`,
+      AND (${table}.position, ${table}.title, ${table}.required${table === 'project_milestones' ? ', project_milestones.due_date' : ''})
+        IS DISTINCT FROM (EXCLUDED.position, EXCLUDED.title, EXCLUDED.required${table === 'project_milestones' ? ', EXCLUDED.due_date' : ''})`,
     [projectId, JSON.stringify(items)],
   );
 }
@@ -196,6 +218,7 @@ export async function listProjects(client: Database, userId: string): Promise<Pr
         p.approval_route,
         p.title,
         p.description,
+        p.due_date::text AS "dueDate", p.timezone,
         p.template_key,
         p.template_version,
         p.status,
@@ -257,6 +280,7 @@ export async function findMemberProjectForUpdate(
           p.approval_route,
           p.title,
           p.description,
+        p.due_date::text AS "dueDate", p.timezone,
           p.template_key,
           p.template_version,
           p.status,
@@ -290,6 +314,7 @@ export async function findProjectForUpdate(
           approval_route,
           title,
           description,
+          due_date::text AS "dueDate", timezone,
           template_key,
           template_version,
           status,
@@ -321,9 +346,9 @@ export async function insertProject(
       title,
       description,
       template_key,
-      template_version
+      template_version, due_date, timezone
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING id`,
     [
       userId,
@@ -333,6 +358,8 @@ export async function insertProject(
       input.description,
       input.templateKey,
       templateVersion,
+      input.dueDate ?? null,
+      input.timezone ?? null,
     ],
   );
   const row = result.rows[0];
@@ -356,9 +383,19 @@ export async function addMember(
 export async function updateBrief(client: PoolClient, id: string, input: Draft): Promise<void> {
   await client.query(
     `UPDATE projects
-    SET title = $2, description = $3
+    SET title = $2, description = $3,
+      due_date = CASE WHEN $4 THEN $5::date ELSE due_date END,
+      timezone = CASE WHEN $6 THEN $7::text ELSE timezone END
     WHERE id = $1`,
-    [id, input.title, input.description],
+    [
+      id,
+      input.title,
+      input.description,
+      input.dueDate !== undefined,
+      input.dueDate ?? null,
+      input.timezone !== undefined,
+      input.timezone ?? null,
+    ],
   );
 }
 
@@ -658,6 +695,7 @@ export async function findProjectDetail(
       'approval_route', p.approval_route,
       'title', p.title,
       'description', p.description,
+      'dueDate', p.due_date::text, 'timezone', p.timezone,
       'template_key', p.template_key,
       'template_version', p.template_version,
       'status', p.status,
@@ -680,6 +718,7 @@ export async function findProjectDetail(
             'id', i.id,
             'title', i.title,
             'required', i.required,
+            'dueDate', i.due_date::text,
             'objectiveIds', COALESCE((SELECT jsonb_agg(mo.objective_id ORDER BY mo.objective_id) FROM milestone_objectives mo WHERE mo.milestone_id = i.id), '[]'),
             'expectedEvidence', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', e.id, 'title', e.title, 'required', e.required) ORDER BY e.position) FROM milestone_expected_evidence e WHERE e.milestone_id = i.id), '[]')
           ) ORDER BY i.position
@@ -697,6 +736,10 @@ export async function findProjectDetail(
         )
         FROM project_deliverables i
         WHERE i.project_id = p.id AND i.archived_at IS NULL
+      ), '[]'),
+      'archived_deliverables', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object('id', d.id, 'title', d.title, 'required', d.required) ORDER BY d.archived_at, d.id)
+        FROM project_deliverables d WHERE d.project_id = p.id AND d.archived_at IS NOT NULL
       ), '[]'),
       'archived_milestones', COALESCE((
         SELECT jsonb_agg(

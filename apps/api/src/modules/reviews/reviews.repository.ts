@@ -85,3 +85,21 @@ export async function changes(db: Database, userId: string, roles: Role[], limit
     )
   ).rows;
 }
+
+export async function finalApprovals(db: Database, userId: string, roles: Role[], limit: number) {
+  return (
+    await db.query<QueueRecord>(
+      `
+    SELECT f.id,p.id AS project_id,p.title AS project_title,m.role,
+      NULL::uuid AS milestone_id,NULL::text AS milestone_title,f.number,f.state,f.feedback AS body,
+      false AS blocking,COALESCE(f.decided_at,f.requested_at) AS updated_at
+    FROM final_approval_requests f JOIN projects p ON p.id=f.project_id
+    JOIN project_memberships m ON m.project_id=p.id AND m.user_id=$1
+    WHERE m.role=ANY($2::text[]) AND p.status IN ('ACTIVE','FINAL_APPROVAL_PENDING')
+      AND f.number=(SELECT max(number) FROM final_approval_requests WHERE project_id=p.id)
+      AND f.state IN ('PENDING','REVISION_REQUESTED','INVALIDATED')
+    ORDER BY updated_at DESC,f.id LIMIT $3`,
+      [userId, roles, limit],
+    )
+  ).rows;
+}

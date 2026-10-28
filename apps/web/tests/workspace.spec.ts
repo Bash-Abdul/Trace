@@ -44,6 +44,11 @@ const queueItem = {
   action: 'Review submission',
 };
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/v1/projects/*/final-approval', (route) =>
+    route.fulfill({
+      json: { version: 2, status: 'ACTIVE', eligible: false, checklist: [], requests: [] },
+    }),
+  );
   await page.route('**/api/v1/projects/*/coverage', (route) =>
     route.fulfill({ json: { objectives: [], milestones: [], requiredOmissions: [] } }),
   );
@@ -152,9 +157,11 @@ test('Reviewer accounts open a distinct review desk and retain demo previews', a
   await expect(page.getByText('Let’s keep your projects moving.', { exact: false })).toHaveCount(0);
   await page.screenshot({ path: '/tmp/trace-reviewer-desktop.png', fullPage: true });
   await page.getByRole('link', { name: 'Process portfolios', exact: true }).click();
-  await expect(page.getByText('Demo preview', { exact: true }).last()).toBeVisible();
-  await page.getByRole('link', { name: /Designing a calmer campus/ }).click();
-  await expect(page).toHaveURL(/\/demo\/projects\/calmer-campus\/portfolio$/);
+  await expect(
+    page.locator('.portfolio-grid').getByRole('link').filter({ hasText: 'Accessible library' }),
+  ).toHaveAttribute('href', '/projects/library/portfolio');
+  await expect(page.getByText('Demo preview', { exact: true })).toHaveCount(0);
+  await page.goto('/demo/projects/calmer-campus/portfolio');
   await expect(
     page.getByRole('heading', { name: 'Designing a calmer campus', exact: true }),
   ).toBeVisible();
@@ -487,4 +494,69 @@ test('coverage preserves objective IDs when editing and explains missing work on
     objectives: ['Evaluate the design', 'Understand the participants'],
     milestones: [{ objectiveIds: ['objective-a'], expectedEvidence: [{ id: 'notes' }] }],
   });
+});
+
+test('dashboard shows live optional deadlines instead of demo dates', async ({ page }) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) =>
+    route.fulfill({
+      json: {
+        projects: [
+          {
+            ...projects[0],
+            dueDate: '2026-12-20',
+            timezone: 'Europe/London',
+            deadline: { state: 'SCHEDULED', daysRemaining: 55 },
+            progress: {
+              milestones: [
+                {
+                  id: 'research',
+                  title: 'Research due',
+                  required: true,
+                  dueDate: '2026-10-20',
+                  state: 'DRAFT',
+                  evidence_count: 0,
+                  deadline: { state: 'OVERDUE', daysRemaining: -6 },
+                },
+                {
+                  id: 'done',
+                  title: 'Approved work',
+                  required: true,
+                  dueDate: '2026-10-19',
+                  state: 'APPROVED',
+                  evidence_count: 1,
+                  deadline: { state: 'APPROVED', daysRemaining: null },
+                },
+                {
+                  id: 'undated',
+                  title: 'Undated work',
+                  required: false,
+                  dueDate: null,
+                  state: 'NOT_STARTED',
+                  evidence_count: 0,
+                  deadline: { state: 'NO_DUE_DATE', daysRemaining: null },
+                },
+              ],
+              members: [],
+              unresolved_feedback: 0,
+              blocking_feedback: 0,
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto('/overview');
+  const schedule = page.locator('.upcoming-panel');
+  await expect(schedule).toContainText('Research due');
+  await expect(schedule).toContainText('Overdue');
+  await expect(schedule).not.toContainText('Approved work');
+  await expect(schedule).not.toContainText('Undated work');
+  await expect(schedule.getByRole('link', { name: /Research due/ })).toHaveAttribute(
+    'href',
+    '/projects/garden/milestones/research',
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await schedule.screenshot({ path: '/tmp/trace-live-dates-mobile.png' });
 });

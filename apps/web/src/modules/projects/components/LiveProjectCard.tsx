@@ -1,3 +1,4 @@
+import { DeadlineLabel } from '../../deadlines/DeadlineLabel';
 import { ArrowUpRight, CalendarDays } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Avatar, Badge, MilestoneProgress } from '../../../shared/ui/Primitives';
@@ -42,7 +43,11 @@ export function LiveProjectCard({ project }: { project: ProjectSummary }) {
         </span>
         <span>
           <CalendarDays size={14} />
-          No due date
+          <DeadlineLabel
+            dueDate={project.dueDate}
+            timezone={project.timezone}
+            deadline={project.deadline}
+          />
         </span>
       </div>
       {feedback > 0 && (
