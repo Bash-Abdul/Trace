@@ -94,26 +94,28 @@ export function AppShell() {
         </div>
         <p className="nav-caption">WORKSPACE</p>
         <nav aria-label="Main navigation">
-          {navigation.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/overview'}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-              onClick={() => setMenuOpen(false)}
-            >
-              <Icon size={19} strokeWidth={1.7} />
-              <span>
-                {to === '/projects' && persona === 'reviewer' ? 'Assigned projects' : label}
-              </span>
-              {to === '/reviews' && pending > 0 && (
-                <span className="nav-count">
-                  {pending}
-                  {queue.data?.truncated ? '+' : ''}
+          {navigation
+            .filter((item) => persona === 'author' || item.to !== '/portfolio')
+            .map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/overview'}
+                className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                <Icon size={19} strokeWidth={1.7} />
+                <span>
+                  {to === '/projects' && persona === 'reviewer' ? 'Assigned projects' : label}
                 </span>
-              )}
-            </NavLink>
-          ))}
+                {to === '/reviews' && pending > 0 && (
+                  <span className="nav-count">
+                    {pending}
+                    {queue.data?.truncated ? '+' : ''}
+                  </span>
+                )}
+              </NavLink>
+            ))}
         </nav>
         <div className="sidebar-projects">
           <p className="nav-caption">YOUR PROJECTS</p>
@@ -133,15 +135,16 @@ export function AppShell() {
           <Link className="nav-item" to="/demo/projects">
             Sample projects
           </Link>
-          <div className="sidebar-note">
-            <Sparkles size={19} />
-            <strong>The journey matters.</strong>
-            <p>Every small step adds to the story of your work.</p>
-            <Link to="/portfolio" onClick={() => setMenuOpen(false)}>
-              {persona === 'reviewer' ? 'Explore process portfolios' : 'See your process portfolio'}{' '}
-              <ArrowUpRight size={14} />
-            </Link>
-          </div>
+          {persona === 'author' && (
+            <div className="sidebar-note">
+              <Sparkles size={19} />
+              <strong>The journey matters.</strong>
+              <p>Every small step adds to the story of your work.</p>
+              <Link to="/portfolio" onClick={() => setMenuOpen(false)}>
+                See your process portfolio <ArrowUpRight size={14} />
+              </Link>
+            </div>
+          )}
           <Link className="nav-item" to="/account" onClick={() => setMenuOpen(false)}>
             <Settings2 size={18} />
             Your Trace account
@@ -181,10 +184,7 @@ export function AppShell() {
           <div className="topbar-actions">
             <span className="demo-chip">
               <span />
-              {location.pathname.startsWith('/demo') ||
-              ['/activity', '/settings'].includes(location.pathname)
-                ? 'Demo preview'
-                : 'Live workspace'}
+              {location.pathname.startsWith('/demo') ? 'Demo preview' : 'Live workspace'}
             </span>
             <button
               className="icon-button"
@@ -241,8 +241,8 @@ export function AppShell() {
             </ol>
             <p className="muted">
               Projects and milestone workflows use your account. Sections labelled Demo preview use
-              fictional records; changes there stay in your browser. The view switch changes
-              presentation, never project permissions.
+              fictional records; changes there stay in your browser. Your role in each project
+              determines the available actions.
             </p>
             <button className="button primary" onClick={() => setHelpOpen(false)}>
               Let’s explore <ArrowUpRight size={16} />

@@ -2,6 +2,15 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Frontend integration — October 28, 2026
+
+Removed the remaining sample-backed dashboard count/activity and connected global activity to
+project history. Live settings links to existing account/session controls; demo settings/activity
+now have explicit `/demo` routes. Portfolio navigation/index is author-focused; assigned reviewers
+retain read-only project access. Includes the portfolio presentation correction after owner review.
+See [frontend-integration.md](./frontend-integration.md) for the route inventory and API limits.
+Next: owner-led change list and MVP review before remaining release work. Reviewer handover stays last.
+
 ## Process portfolio and completion checkpoint — October 27, 2026
 
 Issue #13 is implemented using the original demo portfolio layout. `/portfolio` lists current

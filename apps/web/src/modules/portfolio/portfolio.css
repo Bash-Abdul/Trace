@@ -154,6 +154,10 @@
 .portfolio-history {
   display: flex;
   gap: 20px;
+  font-size: 12px;
+  color: #6c785f;
+  line-height: 1.9;
+  margin-bottom: 10px;
 }
 .portfolio-history time {
   white-space: nowrap;
@@ -271,9 +275,6 @@
 
 .portfolio-document {
   overflow-wrap: anywhere;
-}
-.portfolio-history time {
-  white-space: normal;
 }
 @media print {
   .portfolio-document a[href]::after {

@@ -601,7 +601,12 @@ test('final approval: readiness, invalidation, revision and completion preserve 
     });
     await page.getByRole('link', { name: 'Process portfolio', exact: true }).click();
     await expect(page.getByText('Completed project · final record', { exact: true })).toBeVisible();
+    await expect(page.locator('.portfolio-document details[open]')).toHaveCount(0);
     await expect(page.getByText('Our research report.', { exact: true })).toHaveCount(2);
+    await expect(page.getByText('Our research report.', { exact: true }).first()).toBeHidden();
+    await page.getByText('Deliverable versions and details', { exact: true }).click();
+    await expect(page.getByText('Our research report.', { exact: true }).first()).toBeVisible();
+    await page.getByText('Deliverable versions and details', { exact: true }).click();
     await expect(page.getByText('Confirmed. Well done.', { exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
@@ -617,6 +622,7 @@ test('final approval: readiness, invalidation, revision and completion preserve 
       page.getByRole('heading', { name: 'Feedback that shaped the work' }),
     ).toBeVisible();
     await page.pdf({ path: '/tmp/trace-portfolio-print.pdf', preferCSSPageSize: true });
+    await expect(page.locator('.portfolio-document details[open]')).toHaveCount(0);
     await page.emulateMedia({ media: 'screen' });
     await page.goto('/portfolio');
     await expect(

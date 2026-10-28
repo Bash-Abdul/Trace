@@ -11,8 +11,8 @@ import {
   Plus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useDemo } from '../../app/providers/DemoProvider';
-import { Avatar, formatDate, SectionHeading } from '../../shared/ui/Primitives';
+import { LiveActivityFeed } from '../activity/LiveActivityPage';
+import { SectionHeading } from '../../shared/ui/Primitives';
 import { useWorkspaceView } from '../../app/providers/WorkspaceViewProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { LiveProjectCard } from '../projects/components/LiveProjectCard';
@@ -20,7 +20,6 @@ import { reviewDestination } from '../reviews/reviews-api';
 import { ProjectListState } from '../projects/components/ProjectListState';
 
 export function DashboardPage() {
-  const { projects } = useDemo();
   const { projects: liveProjects, error, retry, persona, queue } = useWorkspaceView();
   const { session } = useAuth();
   const realProjects = (liveProjects ?? []).filter((p) =>
@@ -36,11 +35,11 @@ export function DashboardPage() {
       item.perspective === persona &&
       ['PROPOSAL_IN_REVIEW', 'AWAITING_REVIEW'].includes(item.state),
   ).length;
-  const milestones = projects.flatMap((p) => p.milestones.map((m) => ({ ...m, project: p })));
+  const milestones = realProjects.flatMap((p) => p.progress?.milestones ?? []);
   const feedbackCount = queue.data?.items.filter(
     (item) => item.perspective === persona && item.kind === 'MILESTONE_FEEDBACK',
   ).length;
-  const approved = milestones.filter((m) => m.status === 'approved').length;
+  const approved = milestones.filter((m) => m.state === 'APPROVED').length;
   const next = realProjects
     .filter((p) => p.status !== 'PROPOSAL_REJECTED')
     .flatMap((project) => [
@@ -72,10 +71,6 @@ export function DashboardPage() {
       ),
     ])
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.key.localeCompare(b.key))
-    .slice(0, 3);
-  const activity = projects
-    .flatMap((p) => p.activity.map((a) => ({ ...a, project: p })))
-    .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 3);
   if (!liveProjects) return <ProjectListState error={error} retry={retry} />;
   return (
@@ -143,7 +138,7 @@ export function DashboardPage() {
             icon: CheckCheck,
             label: 'Milestones approved',
             number: approved,
-            note: 'Demo preview · sample milestones',
+            note: 'Live milestones',
             color: 'lilac',
           },
         ].map(({ icon: Icon, label, number, note, color }) => (
@@ -245,27 +240,8 @@ export function DashboardPage() {
             )}
           </section>
           <section className="section-spaced">
-            <SectionHeading title="Latest activity · Demo preview" to="/activity" />
-            <div className="activity-card">
-              {activity.map((item) => (
-                <Link
-                  to={`/demo/projects/${item.project.id}?tab=activity`}
-                  className="activity-row"
-                  key={`${item.project.id}-${item.id}`}
-                >
-                  <Avatar name={item.actor.includes('Maya') ? item.actor : 'Bashir Abdul'} small />
-                  <div>
-                    <p>
-                      <strong>{item.actor}</strong> {item.action}
-                    </p>
-                    <small>
-                      {item.detail} <span>·</span> {item.project.title}
-                    </small>
-                  </div>
-                  <time>{formatDate(item.date)}</time>
-                </Link>
-              ))}
-            </div>
+            <SectionHeading title="Latest activity" to="/activity" />
+            <LiveActivityFeed compact />
           </section>
         </div>
         <aside className="dashboard-aside">
@@ -309,41 +285,42 @@ export function DashboardPage() {
               <ArrowRight size={15} />
             </Link>
           </section>
-          <section className="portfolio-teaser">
-            <div className="portfolio-drawing" aria-hidden="true">
-              <div className="paper-back" />
-              <div className="paper-front">
-                <span className="paper-symbol">t.</span>
-                <i />
-                <i />
-                <i />
-                <div className="paper-grid">
-                  <b />
-                  <b />
-                  <b />
-                  <b />
+          {persona === 'author' && (
+            <section className="portfolio-teaser">
+              <div className="portfolio-drawing" aria-hidden="true">
+                <div className="paper-back" />
+                <div className="paper-front">
+                  <span className="paper-symbol">t.</span>
+                  <i />
+                  <i />
+                  <i />
+                  <div className="paper-grid">
+                    <b />
+                    <b />
+                    <b />
+                    <b />
+                  </div>
                 </div>
+                <span className="paper-stamp">
+                  <CheckCheck size={22} />
+                </span>
               </div>
-              <span className="paper-stamp">
-                <CheckCheck size={22} />
-              </span>
-            </div>
-            <span className="eyebrow">PORTFOLIO · DEMO PREVIEW</span>
-            <h2>
-              {persona === 'reviewer' ? 'Their process.' : 'Your process.'}
-              <br />
-              {persona === 'reviewer' ? 'Your perspective.' : 'Your story.'}
-            </h2>
-            <p>
-              {persona === 'reviewer'
-                ? 'Explore how an Author’s evidence, revisions and your review decisions come together in a process portfolio.'
-                : 'Your evidence, decisions, and reflections come together in a portfolio that grows with you.'}
-            </p>
-            <Link to="/portfolio" className="text-link">
-              {persona === 'reviewer' ? 'Explore a sample portfolio' : 'Preview your portfolio'}
-              <ArrowUpRight size={15} />
-            </Link>
-          </section>
+              <span className="eyebrow">PROCESS PORTFOLIO</span>
+              <h2>
+                Your process.
+                <br />
+                Your story.
+              </h2>
+              <p>
+                Your evidence, decisions, and reflections come together in a portfolio that grows
+                with you.
+              </p>
+              <Link to="/portfolio" className="text-link">
+                Preview your portfolio
+                <ArrowUpRight size={15} />
+              </Link>
+            </section>
+          )}
           <div className="gentle-note">
             <FileCheck2 size={17} />
             <p>Progress is more than a finished outcome. Keep a trace of how you got there.</p>

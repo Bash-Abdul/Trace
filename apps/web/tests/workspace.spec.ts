@@ -156,11 +156,9 @@ test('Reviewer accounts open a distinct review desk and retain demo previews', a
   await expect(page.getByRole('link', { name: 'Open review queue', exact: true })).toBeVisible();
   await expect(page.getByText('Let’s keep your projects moving.', { exact: false })).toHaveCount(0);
   await page.screenshot({ path: '/tmp/trace-reviewer-desktop.png', fullPage: true });
-  await page.getByRole('link', { name: 'Process portfolios', exact: true }).click();
-  await expect(
-    page.locator('.portfolio-grid').getByRole('link').filter({ hasText: 'Accessible library' }),
-  ).toHaveAttribute('href', '/projects/library/portfolio');
-  await expect(page.getByText('Demo preview', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Process portfolios', exact: true })).toHaveCount(0);
+  await page.goto('/portfolio');
+  await expect(page.locator('.portfolio-grid')).toHaveCount(0);
   await page.goto('/demo/projects/calmer-campus/portfolio');
   await expect(
     page.getByRole('heading', { name: 'Designing a calmer campus', exact: true }),
@@ -559,4 +557,55 @@ test('dashboard shows live optional deadlines instead of demo dates', async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await schedule.screenshot({ path: '/tmp/trace-live-dates-mobile.png' });
+});
+
+test('live activity switches projects, retries failures and keeps settings separate from samples', async ({
+  page,
+}) => {
+  await authenticate(page);
+  await page.route('**/api/v1/projects', (route) => route.fulfill({ json: { projects } }));
+  let fail = true;
+  await page.route(/\/api\/v1\/projects\/(garden|library)$/, (route) => {
+    const project = projects.find((p) => route.request().url().endsWith(p.id))!;
+    if (project.id === 'library' && fail)
+      return route.fulfill({ status: 503, json: { message: 'Unavailable' } });
+    return route.fulfill({
+      json: {
+        ...project,
+        objectives: [],
+        milestones: [],
+        deliverables: [],
+        members: [],
+        invitations: [],
+        proposals: [],
+        events: [
+          {
+            id: project.id + '-event',
+            actor: 'author@example.com',
+            action: 'PROJECT_CREATED',
+            created_at: '2026-10-28T10:00:00Z',
+          },
+        ],
+      },
+    });
+  });
+  await page.goto('/activity');
+  await expect(page.locator('.timeline')).toContainText('Community garden');
+  await expect(page.getByText('Demo preview', { exact: true })).toHaveCount(0);
+  await page.getByLabel('Activity for project').selectOption('library');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.locator('.timeline')).toHaveCount(0);
+  fail = false;
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(page.locator('.timeline')).toContainText('Accessible library');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.goto('/settings');
+  await expect(page.getByRole('link', { name: 'Manage account and sessions' })).toHaveAttribute(
+    'href',
+    '/account',
+  );
+  await expect(page.getByRole('button', { name: 'Reset demo data' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Open demo settings' }).click();
+  await expect(page.getByRole('button', { name: 'Reset demo data' })).toBeVisible();
 });

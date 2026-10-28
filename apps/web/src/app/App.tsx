@@ -1,3 +1,5 @@
+import { LiveActivityPage } from '../modules/activity/LiveActivityPage';
+import { LiveSettingsPage } from '../modules/settings/LiveSettingsPage';
 import { LivePortfolioIndex, LivePortfolioPage } from '../modules/portfolio/LivePortfolioPage';
 import { LiveDeliverablePage } from '../modules/deliverables/LiveDeliverablePage';
 import { ReviewQueuePage } from '../modules/reviews/ReviewQueuePage';
@@ -77,8 +79,10 @@ export function App() {
                 </DemoPreview>
               }
             />
+            <Route path="settings" element={<LiveSettingsPage />} />
+            <Route path="activity" element={<LiveActivityPage />} />
             <Route
-              path="settings"
+              path="demo/settings"
               element={
                 <DemoPreview>
                   <SettingsPage />
@@ -86,7 +90,7 @@ export function App() {
               }
             />
             <Route
-              path="activity"
+              path="demo/activity"
               element={
                 <DemoPreview>
                   <ActivityPage />
