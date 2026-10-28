@@ -34,7 +34,7 @@ export function AuthLayout() {
           </Link>
           <Outlet />
           <footer>
-            Curious first? <Link to="/overview">Explore the sample workspace</Link>
+            Back to <Link to="/">Trace</Link>
           </footer>
         </main>
       </div>

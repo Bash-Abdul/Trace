@@ -1,24 +1,31 @@
+import { LiveActivityPage } from '../modules/activity/LiveActivityPage';
+import { LiveSettingsPage } from '../modules/settings/LiveSettingsPage';
+import { LivePortfolioIndex, LivePortfolioPage } from '../modules/portfolio/LivePortfolioPage';
+import { LiveDeliverablePage } from '../modules/deliverables/LiveDeliverablePage';
+import { ReviewQueuePage } from '../modules/reviews/ReviewQueuePage';
+import type { ReactNode } from 'react';
 import { LiveMilestonePage } from '../modules/milestones/LiveMilestonePage';
-import { Route, Routes, Link } from 'react-router-dom';
+import { Route, Routes, Link, Navigate, useLocation } from 'react-router-dom';
+import { WorkspaceViewProvider } from './providers/WorkspaceViewProvider';
+import { DemoProjectsPage } from '../modules/projects/pages/DemoProjectsPage';
+import { NewProjectPage } from '../modules/projects/pages/NewProjectPage';
+import { ProjectPage } from '../modules/projects/pages/ProjectPage';
+import { MilestonePage } from '../modules/submissions/MilestonePage';
+import { PortfolioPage } from '../modules/portfolio/PortfolioPage';
+import { ActivityPage } from '../modules/activity/ActivityList';
+import { SettingsPage } from '../modules/settings/SettingsPage';
+import { ReviewsPage } from '../modules/feedback/FeedbackPanel';
 import { LandingPage } from '../modules/landing/LandingPage';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from '../modules/dashboard/DashboardPage';
 import { ProjectsPage } from '../modules/projects/pages/ProjectsPage';
-import { NewProjectPage } from '../modules/projects/pages/NewProjectPage';
-import { ProjectPage } from '../modules/projects/pages/ProjectPage';
-import { MilestonePage } from '../modules/submissions/MilestonePage';
-import { ReviewsPage } from '../modules/feedback/FeedbackPanel';
-import { ActivityPage } from '../modules/activity/ActivityList';
-import { PortfolioIndex, PortfolioPage } from '../modules/portfolio/PortfolioPage';
-import { SettingsPage } from '../modules/settings/SettingsPage';
 import { EmptyState } from '../shared/ui/Primitives';
 import { AuthLayout, RequireAuth } from '../modules/auth/components/AuthLayout';
 import { CredentialsPage } from '../modules/auth/pages/CredentialsPage';
 import { EmailRequestPage } from '../modules/auth/pages/EmailRequestPage';
 import { ActionTokenPage } from '../modules/auth/pages/ActionTokenPage';
 import { AccountPage } from '../modules/auth/pages/AccountPage';
-import { WorkspaceProvider, WorkspaceLayout } from '../modules/workspace/WorkspaceLayout';
-import { WorkspacePage } from '../modules/workspace/WorkspacePage';
+import { WorkspaceProvider } from '../modules/workspace/WorkspaceLayout';
 import { CreateProjectPage } from '../modules/workspace/CreateProjectPage';
 import { LiveProjectPage } from '../modules/workspace/LiveProjectPage';
 import { AcceptInvitationPage } from '../modules/workspace/AcceptInvitationPage';
@@ -43,42 +50,133 @@ export function App() {
       </Route>
       <Route element={<WorkspaceProvider />}>
         <Route element={<RequireAuth />}>
-          <Route path="workspace" element={<WorkspaceLayout />}>
-            <Route index element={<WorkspacePage />} />
-            <Route path="new" element={<CreateProjectPage />} />
+          <Route path="workspace/*" element={<LegacyWorkspaceRedirect />} />
+          <Route
+            element={
+              <WorkspaceViewProvider>
+                <AppShell />
+              </WorkspaceViewProvider>
+            }
+          >
+            <Route path="overview" element={<DashboardPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/new" element={<CreateProjectPage />} />
             <Route path="projects/:projectId" element={<LiveProjectPage />} />
             <Route
               path="projects/:projectId/milestones/:milestoneId"
               element={<LiveMilestonePage />}
             />
+            <Route
+              path="projects/:projectId/deliverables/:deliverableId"
+              element={<LiveDeliverablePage />}
+            />
+            <Route path="reviews" element={<ReviewQueuePage />} />
+            <Route
+              path="demo/reviews"
+              element={
+                <DemoPreview>
+                  <ReviewsPage />
+                </DemoPreview>
+              }
+            />
+            <Route path="settings" element={<LiveSettingsPage />} />
+            <Route path="activity" element={<LiveActivityPage />} />
+            <Route
+              path="demo/settings"
+              element={
+                <DemoPreview>
+                  <SettingsPage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="demo/activity"
+              element={
+                <DemoPreview>
+                  <ActivityPage />
+                </DemoPreview>
+              }
+            />
+            <Route path="portfolio" element={<LivePortfolioIndex />} />
+            <Route path="projects/:projectId/portfolio" element={<LivePortfolioPage />} />
+            <Route
+              path="demo/projects"
+              element={
+                <DemoPreview>
+                  <DemoProjectsPage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="demo/projects/new"
+              element={
+                <DemoPreview>
+                  <NewProjectPage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="demo/projects/:projectId"
+              element={
+                <DemoPreview>
+                  <ProjectPage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="demo/projects/:projectId/milestones/:milestoneId"
+              element={
+                <DemoPreview>
+                  <MilestonePage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="demo/projects/:projectId/portfolio"
+              element={
+                <DemoPreview>
+                  <PortfolioPage />
+                </DemoPreview>
+              }
+            />
+            <Route
+              path="*"
+              element={
+                <EmptyState
+                  title="This page hasn’t taken shape yet"
+                  description="Let’s head back to your workspace."
+                >
+                  <Link className="button primary" to="/overview">
+                    Back to overview
+                  </Link>
+                </EmptyState>
+              }
+            />
           </Route>
         </Route>
       </Route>
-      <Route element={<AppShell />}>
-        <Route path="overview" element={<DashboardPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="projects/new" element={<NewProjectPage />} />
-        <Route path="projects/:projectId" element={<ProjectPage />} />
-        <Route path="projects/:projectId/milestones/:milestoneId" element={<MilestonePage />} />
-        <Route path="projects/:projectId/portfolio" element={<PortfolioPage />} />
-        <Route path="reviews" element={<ReviewsPage />} />
-        <Route path="activity" element={<ActivityPage />} />
-        <Route path="portfolio" element={<PortfolioIndex />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route
-          path="*"
-          element={
-            <EmptyState
-              title="This page hasn’t taken shape yet"
-              description="Let’s head back to your workspace."
-            >
-              <Link className="button primary" to="/overview">
-                Back to overview
-              </Link>
-            </EmptyState>
-          }
-        />
-      </Route>
     </Routes>
+  );
+}
+
+function LegacyWorkspaceRedirect() {
+  const { pathname, search, hash } = useLocation();
+  const target =
+    pathname === '/workspace' || pathname === '/workspace/'
+      ? '/projects'
+      : pathname === '/workspace/new'
+        ? '/projects/new'
+        : pathname.replace(/^\/workspace/, '');
+  return <Navigate to={`${target}${search}${hash}`} replace />;
+}
+function DemoPreview({ children }: { children: ReactNode }) {
+  return (
+    <section className="demo-preview">
+      <p className="soft-note">
+        <strong>Demo preview</strong> · Fictional records for features still being connected.
+        Actions here only update this browser.
+      </p>
+      {children}
+    </section>
   );
 }

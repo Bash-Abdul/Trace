@@ -1,3 +1,8 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
+import { deadline } from '../deadlines/deadlines.service.js';
+import { snapshot as snapshotCoverage } from '../evidence-coverage/coverage.repository.js';
+import { isDeepStrictEqual } from 'node:util';
+import { enqueue } from '../notifications/notifications.repository.js';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { withTransaction, type Database } from '../../config/db.js';
@@ -24,7 +29,7 @@ async function member(
   if (!project) {
     throw notFound('Project not found');
   }
-  if (project.status !== 'ACTIVE') {
+  if (!['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)) {
     throw new AppError(
       422,
       'PROJECT_INACTIVE',
@@ -69,9 +74,11 @@ async function detail(client: PoolClient, params: MilestoneParams): Promise<Deta
   if (!milestone) {
     throw notFound('Milestone not found');
   }
+  const current = await repository.state(client, params.milestoneId);
   return {
     milestone,
-    ...(await repository.state(client, params.milestoneId)),
+    ...current,
+    deadline: deadline(milestone.dueDate, milestone.timezone, current.state),
     evidence: await repository.evidence(client, params.milestoneId),
     submissions: await repository.versions(client, params.milestoneId),
     feedback: await repository.feedback(client, params.milestoneId),
@@ -99,12 +106,13 @@ async function record(
   roles: Role[],
   details: object = {},
 ): Promise<void> {
+  await invalidatePending(client, params.projectId, userId);
   await projects.event(client, params.projectId, userId, action, {
     milestoneId: params.milestoneId,
     ...details,
   });
   if (roles.length) {
-    await repository.notify(client, params.projectId, params.milestoneId, userId, action, roles);
+    await enqueue(client, params.projectId, userId, action, roles, details, params.milestoneId);
   }
 }
 
@@ -126,12 +134,18 @@ export async function saveDraft(
   input: Draft,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['LEAD_AUTHOR', 'AUTHOR']);
   requireVersion(current.version, input.version);
   if (!['NOT_STARTED', 'DRAFT', 'REVISION_REQUESTED'].includes(current.state)) {
     throw conflict('This milestone is not editable.');
   }
   const existing = await repository.evidence(client, params.milestoneId);
+  const structure = await projects.structure(client, params.projectId);
+  const plan = structure.milestones.find((m) => m.id === params.milestoneId)!;
   const used = new Set<string>();
   const evidence = input.evidence.map((item) => {
     const previous = existing.find((entry) => entry.id === item.id);
@@ -139,14 +153,27 @@ export async function saveDraft(
       throw badRequest('Evidence IDs must belong to this draft and appear only once.');
     }
     const id = item.id ?? randomUUID();
+    const objectiveIds = item.objectiveIds ?? previous?.objectiveIds ?? [];
+    const expectationIds = item.expectationIds ?? previous?.expectationIds ?? [];
+    if (
+      new Set(objectiveIds).size !== objectiveIds.length ||
+      objectiveIds.some((id) => !plan.objectiveIds?.includes(id)) ||
+      new Set(expectationIds).size !== expectationIds.length ||
+      expectationIds.some((id) => !plan.expectedEvidence?.some((r) => r.id === id))
+    )
+      throw badRequest('Evidence mappings must belong to this milestone and appear only once.');
     used.add(id);
     const unchanged =
       previous &&
       previous.title === item.title &&
       previous.kind === item.kind &&
-      previous.content === item.content;
+      previous.content === item.content &&
+      isDeepStrictEqual(previous.objectiveIds, objectiveIds) &&
+      isDeepStrictEqual(previous.expectationIds, expectationIds);
     return {
       ...item,
+      objectiveIds,
+      expectationIds,
       id,
       created_by: previous?.created_by ?? userId,
       updated_by: unchanged ? previous.updated_by : userId,
@@ -165,6 +192,10 @@ export async function submit(
   version: number,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['LEAD_AUTHOR']);
   requireVersion(current.version, version);
   if (current.state !== 'DRAFT') {
@@ -177,7 +208,28 @@ export async function submit(
   if (!evidence.length) {
     throw new AppError(422, 'EVIDENCE_REQUIRED', 'Add evidence before submitting.');
   }
-  const submissionId = await repository.submit(client, params.milestoneId, evidence, userId);
+  const structure = await projects.structure(client, params.projectId);
+  const plan = structure.milestones.find((m) => m.id === params.milestoneId)!;
+  const snapshot = evidence.map((item) => ({
+    ...item,
+    objectiveMappings: (item.objectiveIds ?? []).map((id) => ({
+      id,
+      title: structure.objectives[structure.objectiveIds!.indexOf(id)]!,
+    })),
+    expectationMappings: (plan.expectedEvidence ?? []).filter((r) =>
+      item.expectationIds?.includes(r.id),
+    ),
+  }));
+  const submissionId = await repository.submit(client, params.milestoneId, snapshot, userId);
+  await snapshotCoverage(client, submissionId, {
+    dueDate: plan.dueDate ?? null,
+    timezone: current.project.timezone ?? null,
+    objectives: (plan.objectiveIds ?? []).map((id) => ({
+      id,
+      title: structure.objectives[structure.objectiveIds!.indexOf(id)]!,
+    })),
+    expectedEvidence: plan.expectedEvidence ?? [],
+  });
   await transition(client, params, version, 'AWAITING_REVIEW');
   await record(client, params, userId, 'MILESTONE_SUBMITTED', ['MAIN_REVIEWER'], { submissionId });
   return detail(client, params);
@@ -191,6 +243,10 @@ export async function decide(
   input: Decision,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict(
+      'This milestone was removed from the active plan. Its history remains available.',
+    );
   requireRole(current.project, ['MAIN_REVIEWER']);
   requireVersion(current.version, input.version);
   const latest = (await repository.versions(client, params.milestoneId))[0];
@@ -225,6 +281,8 @@ export async function addFeedback(
   input: NewFeedback,
 ): Promise<Detail> {
   const current = await context(client, params, userId);
+  if (current.milestone.archived_at)
+    throw conflict('This milestone is archived. Existing threads can still be resolved.');
   requireRole(current.project, ['MAIN_REVIEWER']);
   const submission = (await repository.versions(client, params.milestoneId)).find(
     (item) => item.id === submissionId,

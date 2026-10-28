@@ -394,9 +394,6 @@
   .persona-select .avatar {
     display: none;
   }
-  .notification-button {
-    display: none !important;
-  }
   .workspace-footer span:first-child {
     max-width: 150px;
   }
@@ -410,4 +407,22 @@
     transition: none !important;
     animation: none !important;
   }
+}
+
+.connected-workspace > .skip-link:not(:focus) {
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+}
+.connected-workspace .profile > div,
+.connected-workspace .main-content,
+.connected-workspace .project-card {
+  min-width: 0;
+}
+.connected-workspace .profile strong,
+.connected-workspace .page-heading,
+.connected-workspace .project-card {
+  overflow-wrap: anywhere;
 }

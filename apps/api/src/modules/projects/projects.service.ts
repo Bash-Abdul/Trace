@@ -1,3 +1,11 @@
+import { invalidatePending } from '../final-approval/final-approval.service.js';
+import { validateSchedule, withDeadlines } from '../deadlines/deadlines.service.js';
+import {
+  resolveObjectives,
+  resolveMilestoneCoverage,
+} from '../evidence-coverage/coverage.service.js';
+import { isFormerAuthor } from '../members/members.repository.js';
+import { enqueue } from '../notifications/notifications.repository.js';
 import type { PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import type { Database } from '../../config/db.js';
@@ -8,11 +16,13 @@ import { templates } from './projects.templates.js';
 import * as repository from './projects.repository.js';
 import type {
   CreateProject,
+  SavedStructure,
   Draft,
   Invitation,
   Decision,
   Role,
   MemberProject,
+  ProjectListItem,
   ProjectDetailResponse,
   InvitationResponse,
   StructureItem,
@@ -52,7 +62,7 @@ function requireDraft(project: MemberProject): void {
 }
 
 function requireInvitationPermission(project: MemberProject, role: Invitation['role']): void {
-  if (project.status === 'PROPOSAL_REJECTED') {
+  if (['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status)) {
     throw conflict('This project was rejected.');
   }
   if (
@@ -67,8 +77,11 @@ function requireInvitationPermission(project: MemberProject, role: Invitation['r
   throw forbidden('This invitation role is not allowed for your project.');
 }
 
-export function listProjects(client: Database, userId: string): Promise<MemberProject[]> {
-  return repository.listProjects(client, userId);
+export async function listProjects(client: Database, userId: string): Promise<ProjectListItem[]> {
+  const now = new Date();
+  return (await repository.listProjects(client, userId)).map((project) =>
+    withDeadlines(project, now),
+  );
 }
 
 export async function getProject(
@@ -84,7 +97,7 @@ export async function getProject(
   if (!project) {
     throw notFound('Project not found');
   }
-  return project;
+  return withDeadlines(project);
 }
 
 export async function createProject(
@@ -93,21 +106,49 @@ export async function createProject(
   input: CreateProject,
 ): Promise<ProjectDetailResponse> {
   const template = templates.find((template) => template.key === input.templateKey);
-  if (!template) {
+  if (!template && input.templateKey !== 'custom') {
     throw badRequest('Unknown project template', 'VALIDATION_ERROR');
   }
-  const id = await repository.insertProject(client, userId, input, template.version);
+  validateSchedule(input, input.milestones ?? []);
+  const id = await repository.insertProject(client, userId, input, template?.version ?? 1);
   await repository.addMember(client, id, userId, input.creatorRole);
-  await repository.saveStructure(client, id, {
+  if (
+    input.objectiveIds?.some(Boolean) ||
+    input.milestones?.some((m) => m.objectiveIds?.length || m.expectedEvidence?.some((r) => r.id))
+  )
+    throw badRequest(
+      'Create the project first, then link its objectives and expected evidence in the brief.',
+    );
+  const initialStructure: SavedStructure = {
     ...input,
-    milestones: template.milestones.map((title) => ({ id: randomUUID(), title, required: true })),
-    deliverables: [{ id: randomUUID(), title: 'Final outcome & reflection', required: true }],
-  });
+    objectiveIds: input.objectives.map(() => randomUUID()),
+    milestones: (
+      input.milestones ?? template!.milestones.map((title) => ({ title, required: true }))
+    ).map((item) => ({
+      ...item,
+      id: randomUUID(),
+      expectedEvidence: ('expectedEvidence' in item ? (item.expectedEvidence ?? []) : []).map(
+        (r) => ({ ...r, id: randomUUID() }),
+      ),
+    })),
+    deliverables: (
+      input.deliverables ?? [{ title: 'Final outcome & reflection', required: true }]
+    ).map((item) => ({ ...item, id: randomUUID() })),
+  };
+  await repository.saveStructure(client, id, initialStructure);
   await repository.event(client, id, userId, 'PROJECT_CREATED', {
     projectType: input.projectType,
     approvalRoute: input.approvalRoute,
-    template: template.key,
-    templateVersion: template.version,
+    template: input.templateKey,
+    templateVersion: template?.version ?? 1,
+    schedule: {
+      dueDate: input.dueDate ?? null,
+      timezone: input.timezone ?? null,
+      milestones: initialStructure.milestones.map((m) => ({
+        id: m.id,
+        dueDate: m.dueDate ?? null,
+      })),
+    },
   });
 
   return getProject(client, id, userId);
@@ -127,15 +168,32 @@ export async function updateDraft(
   const before = {
     title: project.title,
     description: project.description,
+    dueDate: project.dueDate ?? null,
+    timezone: project.timezone ?? null,
     ...(await repository.structure(client, id)),
   };
 
+  const objectiveIds = resolveObjectives(input, before);
   const structure = {
     ...input,
-    milestones: resolveItems(input.milestones, before.milestones),
-    deliverables: resolveItems(input.deliverables, before.deliverables),
+    objectiveIds,
+    milestones: resolveMilestoneCoverage(
+      resolveItems(input.milestones, before.milestones),
+      before,
+      objectiveIds,
+    ),
+    deliverables: resolveItems(input.deliverables, before.deliverables).map(
+      ({ id, title, required }) => ({ id, title, required }),
+    ),
   };
 
+  validateSchedule(
+    {
+      dueDate: input.dueDate === undefined ? project.dueDate : input.dueDate,
+      timezone: input.timezone === undefined ? project.timezone : input.timezone,
+    },
+    structure.milestones,
+  );
   await repository.updateBrief(client, id, input);
   await repository.saveStructure(client, id, structure);
   await repository.touch(client, id);
@@ -152,6 +210,8 @@ export async function invite(
 ): Promise<InvitationResponse> {
   const project = await requireMemberProjectForUpdate(client, id, userId);
   requireInvitationPermission(project, input.role);
+  if (input.role === 'MAIN_REVIEWER' && (await isFormerAuthor(client, id, input.email)))
+    throw forbidden('A former Author cannot review their own project.');
   if (await repository.memberByEmail(client, id, input.email)) {
     throw conflict('That person is already a project member.');
   }
@@ -225,6 +285,8 @@ export async function acceptInvitation(
     throw forbidden('The inviter no longer has access.');
   }
   requireInvitationPermission({ ...project, role: inviterRole }, invitation.role);
+  if (invitation.role === 'MAIN_REVIEWER' && (await isFormerAuthor(client, id, account.email)))
+    throw forbidden('A former Author cannot review their own project.');
   if (await repository.memberRole(client, id, userId)) {
     throw conflict('You are already a member of this project.');
   }
@@ -234,6 +296,7 @@ export async function acceptInvitation(
 
   await repository.addMember(client, id, userId, invitation.role);
   await repository.consumeInvitation(client, invitation.id);
+  await invalidatePending(client, id, userId);
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'INVITATION_ACCEPTED', {
     invitationId: invitation.id,
@@ -290,12 +353,15 @@ export async function submitProposal(
     {
       title: project.title,
       description: project.description,
+      dueDate: project.dueDate ?? null,
+      timezone: project.timezone ?? null,
       ...(await repository.structure(client, id)),
     },
     userId,
   );
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'PROPOSAL_SUBMITTED', { version });
+  await enqueue(client, id, userId, 'PROPOSAL_SUBMITTED', ['MAIN_REVIEWER'], { version });
 
   return getProject(client, id, userId);
 }
@@ -326,6 +392,10 @@ export async function decideProposal(
     REJECT: 'PROPOSAL_REJECTED',
   };
   await repository.applyDecisionStatus(client, id, statuses[input.decision]);
+  await enqueue(client, id, userId, 'PROPOSAL_DECIDED', ['LEAD_AUTHOR', 'AUTHOR'], {
+    proposalId,
+    decision: input.decision,
+  });
   await repository.touch(client, id);
   await repository.event(client, id, userId, 'PROPOSAL_DECIDED', {
     proposalId,
@@ -337,7 +407,10 @@ export async function decideProposal(
 }
 
 // Explicit IDs are authoritative. An omitted ID alongside explicit IDs means a new item.
-function resolveItems(input: Draft['milestones'], existing: StructureItem[]): StructureItem[] {
+function resolveItems(
+  input: Draft['milestones'],
+  existing: StructureItem[],
+): (Draft['milestones'][number] & { id: string })[] {
   const existingIds = new Set(existing.map((item) => item.id));
   const suppliedIds = new Set<string>();
   for (const item of input) {
@@ -363,7 +436,7 @@ function resolveItems(input: Draft['milestones'], existing: StructureItem[]): St
 function resolveLegacyItems(
   input: Draft['milestones'],
   existing: StructureItem[],
-): StructureItem[] {
+): (Draft['milestones'][number] & { id: string })[] {
   const sameTitleOrder =
     input.length === existing.length &&
     input.every((item, index) => item.title === existing[index]?.title);

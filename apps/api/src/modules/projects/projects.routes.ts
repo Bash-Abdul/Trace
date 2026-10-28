@@ -1,3 +1,11 @@
+import { portfolioRouter } from '../portfolio/portfolio.routes.js';
+import { finalApprovalRouter } from '../final-approval/final-approval.routes.js';
+import { deliverablesRouter } from '../deliverables/deliverables.routes.js';
+import { coverageRouter } from '../evidence-coverage/coverage.routes.js';
+import { membersRouter } from '../members/members.routes.js';
+import { changesRouter } from '../changes/changes.routes.js';
+import { notificationsRouter } from '../notifications/notifications.routes.js';
+import { reviewsRouter } from '../reviews/reviews.routes.js';
 import { notifications } from '../milestones/milestones.controller.js';
 import { notificationParams } from '../milestones/milestones.schema.js';
 import { milestonesRouter } from '../milestones/milestones.routes.js';
@@ -29,6 +37,8 @@ projectsRouter.use((request, response, next) => {
   if (request.method === 'GET') return next();
   return requireMutationOrigin(request, response, next);
 });
+projectsRouter.use('/reviews', reviewsRouter);
+projectsRouter.use('/notifications', notificationsRouter);
 projectsRouter.get('/templates', authenticateRead(controller.listTemplates));
 projectsRouter.get('/', authenticateRead(controller.listProjects));
 projectsRouter.post(
@@ -79,3 +89,15 @@ projectsRouter.get(
   validate({ params: notificationParams }),
   authenticateRead(notifications),
 );
+
+projectsRouter.use('/:projectId/changes', changesRouter);
+
+projectsRouter.use('/:projectId/members', membersRouter);
+
+projectsRouter.use('/:projectId/coverage', coverageRouter);
+
+projectsRouter.use('/:projectId/deliverables/:deliverableId', deliverablesRouter);
+
+projectsRouter.use('/:projectId/final-approval', finalApprovalRouter);
+
+projectsRouter.use('/:projectId/portfolio', portfolioRouter);

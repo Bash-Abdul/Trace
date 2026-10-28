@@ -1,6 +1,16 @@
+import { projectChangedEvent } from '../notifications/action-toast';
+import { DeadlineLabel, dateLabel } from '../deadlines/DeadlineLabel';
+import { ProjectCoverage } from '../evidence-coverage/ProjectCoverage';
+import { ProjectChanges } from '../changes/ProjectChanges';
+import { ArrowLeft, ArrowUpRight, CalendarDays } from 'lucide-react';
+import { Badge } from '../../shared/ui/Primitives';
+import { LiveProjectOverview } from '../projects/components/LiveProjectOverview';
+import { LiveMilestoneList } from '../projects/components/LiveMilestoneList';
+import { projectPresentation } from '../projects/components/live-project-presentation';
+import { roleLabels } from './workspace-api';
 import { ProjectNotifications } from '../milestones/ProjectNotifications';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useProjectApi } from './use-project-api';
 import { detailSchema, type ProjectDetail, statusLabels, projectMessage } from './workspace-api';
 import { ProjectTeamPanel } from './ProjectTeamPanel';
@@ -13,6 +23,9 @@ export function LiveProjectPage() {
 }
 function ProjectContent({ id }: { id: string }) {
   const api = useProjectApi();
+  const [params, setParams] = useSearchParams();
+  const tabs = ['overview', 'milestones', 'evidence', 'feedback', 'activity', 'team', 'changes'];
+  const tab = tabs.includes(params.get('tab') ?? '') ? params.get('tab')! : 'overview';
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -20,9 +33,15 @@ function ProjectContent({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    const refresh = () => setAttempt((n) => n + 1);
+    window.addEventListener(projectChangedEvent, refresh);
+    return () => window.removeEventListener(projectChangedEvent, refresh);
+  }, []);
+  useEffect(() => {
     const controller = new AbortController();
     api(`/${id}`, detailSchema, { signal: controller.signal })
       .then((data) => {
+        if (controller.signal.aborted) return;
         setProject(data);
         setError('');
       })
@@ -51,7 +70,7 @@ function ProjectContent({ id }: { id: string }) {
   if (!project)
     return (
       <>
-        <Link to="/workspace">Back to projects</Link>
+        <Link to="/projects">Back to projects</Link>
         {error ? (
           <p role="alert">
             {error} <button onClick={() => setAttempt((n) => n + 1)}>Retry</button>
@@ -81,83 +100,70 @@ function ProjectContent({ id }: { id: string }) {
   }
   return (
     <>
-      <Link className="back-link" to="/workspace">
-        ← Your projects
+      <Link className="back-link" to="/projects">
+        <ArrowLeft size={15} /> All projects
       </Link>
-      <div className="page-heading">
+      <div className="page-heading project-page-heading">
         <div>
           <p className="eyebrow">
-            {project.project_type === 'GROUP' ? 'GROUP PROJECT' : 'INDIVIDUAL PROJECT'} ·{' '}
-            {statusLabels[project.status]}
+            {project.project_type === 'GROUP' ? 'Group project' : 'Individual project'}
+            <span className="eyebrow-separator">/</span>
+            {projectPresentation(project).label}
           </p>
           <h1>{project.title}</h1>
-          <p>{project.description}</p>
+          <div className="project-heading-meta">
+            <Badge tone={project.status === 'ACTIVE' ? 'green' : 'amber'}>
+              {project.status === 'ACTIVE' ? 'In progress' : statusLabels[project.status]}
+            </Badge>
+            <span>
+              <CalendarDays size={15} />
+              <DeadlineLabel
+                dueDate={project.dueDate}
+                timezone={project.timezone}
+                deadline={project.deadline}
+              />
+            </span>
+            <span>
+              Your role:{' '}
+              {project.project_type === 'INDIVIDUAL' && project.role === 'LEAD_AUTHOR'
+                ? 'Author'
+                : roleLabels[project.role]}
+            </span>
+          </div>
         </div>
-        {editable && !editing && (
-          <button className="button secondary" onClick={() => setEditing(true)}>
-            Edit brief
-          </button>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="soft-note">
-          {error}{' '}
-          <button
-            disabled={busy}
-            className="button secondary small"
-            onClick={() => {
-              setEditing(false);
-              setAttempt((n) => n + 1);
-            }}
+        <div className="inline-actions">
+          {editable && !editing && (
+            <button className="button secondary" onClick={() => setEditing(true)}>
+              Edit brief
+            </button>
+          )}
+          <Link
+            className="button secondary"
+            to={`/projects/${id}/portfolio`}
+            title="Project process portfolio"
           >
-            Reload project
-          </button>
-        </p>
-      )}
-      {notice && <p role="status">{notice}</p>}
-      {editing && editable ? (
-        <ProjectDraftEditor
-          project={project}
-          busy={busy}
-          cancel={() => setEditing(false)}
-          save={async (body) => {
-            if (await run(() => api(`/${id}`, detailSchema, { method: 'PATCH', body })))
-              setEditing(false);
-          }}
-        />
-      ) : (
-        <div className="live-detail-grid">
-          <section className="panel form-panel">
-            <h2>The project brief</h2>
-            <h3>Objectives</h3>
-            <ul>
-              {project.objectives.map((o, i) => (
-                <li key={i}>{o}</li>
-              ))}
-            </ul>
-            <h3>Milestones</h3>
-            <ol>
-              {project.milestones.map((m) => (
-                <li key={m.id}>
-                  <Link to={`/workspace/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
-                  {m.required ? '' : ' (optional)'}
-                </li>
-              ))}
-            </ol>
-            <h3>Deliverables</h3>
-            <ul>
-              {project.deliverables.map((d) => (
-                <li key={d.id}>
-                  {d.title}
-                  {d.required ? '' : ' (optional)'}
-                </li>
-              ))}
-            </ul>
+            Process portfolio <ArrowUpRight size={16} />
+          </Link>
+        </div>
+      </div>
+      {(editable ||
+        ['SETUP', 'PROPOSAL_REJECTED', 'PROPOSAL_IN_REVIEW'].includes(project.status)) && (
+        <div className="workflow-banner">
+          <div>
+            <strong>
+              {project.status === 'PROPOSAL_CHANGES_REQUESTED'
+                ? 'A little refinement before you begin.'
+                : 'A shared starting point.'}
+            </strong>
             {editable &&
               project.role === 'LEAD_AUTHOR' &&
               project.approval_route === 'IN_PLATFORM_PROPOSAL' && (
                 <>
-                  <p>Your main Reviewer must join before you can submit this brief.</p>
+                  <p>
+                    {project.members.some((m) => m.role === 'MAIN_REVIEWER')
+                      ? 'Your starting structure is ready to submit for review.'
+                      : 'Your main Reviewer must join before you can submit this brief.'}
+                  </p>
                   <button
                     disabled={busy || !project.members.some((m) => m.role === 'MAIN_REVIEWER')}
                     className="button primary"
@@ -180,103 +186,261 @@ function ProjectContent({ id }: { id: string }) {
                 joined.
               </p>
             )}
-            {project.status === 'ACTIVE' && (
-              <p className="soft-note">
-                Your project is active. Open a milestone to add evidence, submit work or review it.
-              </p>
-            )}
             {project.status === 'PROPOSAL_REJECTED' && (
               <p className="soft-note">
                 This proposal was rejected. A new project is required to start again.
               </p>
             )}
-          </section>
-          <ProjectTeamPanel project={project} api={api} run={run} busy={busy} />
+
+            {project.status === 'PROPOSAL_IN_REVIEW' && (
+              <p>Your submitted proposal is awaiting the Main Reviewer’s decision.</p>
+            )}
+          </div>
         </div>
       )}
-      <section className="panel form-panel live-section">
-        <h2>Proposal history</h2>
-        {!project.proposals.length && <p>No proposals submitted yet.</p>}
-        {project.proposals.map((proposal) => (
-          <details key={proposal.id} open={proposal.id === latest?.id}>
-            <summary>
-              Version {proposal.version} ·{' '}
-              {proposal.decision
-                ? proposal.decision.replaceAll('_', ' ').toLowerCase()
-                : 'Awaiting review'}
-            </summary>
-            <h3>{proposal.structure.title}</h3>
-            <p>{proposal.structure.description}</p>
-            <h4>Objectives</h4>
-            <ul>
-              {proposal.structure.objectives.map((o, i) => (
-                <li key={i}>{o}</li>
-              ))}
-            </ul>
-            <h4>Milestones</h4>
-            <ol>
-              {proposal.structure.milestones.map((m) => (
-                <li key={m.id}>
-                  {m.title}
-                  {m.required ? ' (required)' : ' (optional)'}
-                </li>
-              ))}
-            </ol>
-            <h4>Deliverables</h4>
-            <ul>
-              {proposal.structure.deliverables.map((d) => (
-                <li key={d.id}>
-                  {d.title}
-                  {d.required ? ' (required)' : ' (optional)'}
-                </li>
-              ))}
-            </ul>
-            {proposal.feedback && (
-              <p>
-                <strong>Reviewer feedback:</strong> {proposal.feedback}
-              </p>
+      <div className="project-tabs" role="tablist" aria-label="Project sections">
+        {tabs.map((value, index) => (
+          <button
+            key={value}
+            role="tab"
+            id={`live-tab-${value}`}
+            aria-controls="live-project-panel"
+            aria-selected={tab === value}
+            tabIndex={tab === value ? 0 : -1}
+            className={tab === value ? 'active' : ''}
+            onClick={() => {
+              setEditing(false);
+              setParams({ tab: value });
+            }}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next =
+                event.key === 'Home'
+                  ? tabs[0]!
+                  : event.key === 'End'
+                    ? tabs[tabs.length - 1]!
+                    : tabs[
+                        (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length
+                      ]!;
+              setEditing(false);
+              setParams({ tab: next });
+              document.getElementById(`live-tab-${next}`)?.focus();
+            }}
+          >
+            {value === 'feedback' ? 'Milestone feedback' : value[0]!.toUpperCase() + value.slice(1)}
+            {value === 'feedback' && !!project.progress?.unresolved_feedback && (
+              <span className="count">{project.progress.unresolved_feedback}</span>
             )}
-          </details>
+          </button>
         ))}
-        {project.role === 'MAIN_REVIEWER' && project.status === 'PROPOSAL_IN_REVIEW' && latest && (
-          <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
-            <h3>Review this proposal</h3>
-            <label>
-              Decision
-              <select name="decision">
-                <option value="APPROVE">Approve</option>
-                <option value="REQUEST_CHANGES">Request changes</option>
-                <option value="REJECT">Reject — this closes the proposal permanently</option>
-              </select>
-            </label>
-            <label>
-              Reviewer feedback
-              <textarea name="feedback" maxLength={2000} rows={3} />
-            </label>
-            <p className="muted">
-              Explain requested changes or rejection. Your decision applies to the submitted version
-              shown above.
-            </p>
-            <button disabled={busy} className="button primary">
-              Save decision
+      </div>
+      <div role="tabpanel" id="live-project-panel" aria-labelledby={`live-tab-${tab}`}>
+        {error && (
+          <p role="alert" className="soft-note">
+            {error}{' '}
+            <button
+              disabled={busy}
+              className="button secondary small"
+              onClick={() => {
+                setEditing(false);
+                setAttempt((n) => n + 1);
+              }}
+            >
+              Reload project
             </button>
-          </form>
+          </p>
         )}
-      </section>
-      <ProjectNotifications projectId={id} />
-      <section className="panel form-panel live-section">
-        <h2>Project history</h2>
-        <ul className="live-events">
-          {project.events.map((e) => (
-            <li key={e.id}>
-              <strong>{e.action.replaceAll('_', ' ').toLowerCase()}</strong>
-              <span>
-                {e.actor} · {new Date(e.created_at).toLocaleString()}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+        {notice && <p role="status">{notice}</p>}
+        {editing && editable ? (
+          <ProjectDraftEditor
+            project={project}
+            busy={busy}
+            cancel={() => setEditing(false)}
+            save={async (body) => {
+              if (await run(() => api(`/${id}`, detailSchema, { method: 'PATCH', body })))
+                setEditing(false);
+            }}
+          />
+        ) : tab === 'overview' ? (
+          <LiveProjectOverview project={project}>
+            {project.approval_route === 'EXTERNALLY_APPROVED' ? (
+              <section className="panel form-panel live-section">
+                <h2>Approved elsewhere</h2>
+                <p>
+                  This project uses an approval obtained outside Trace. There is no proposal to
+                  submit or approve here.
+                </p>
+                <p>
+                  {project.status === 'COMPLETED'
+                    ? 'The main Reviewer has approved final completion. The milestone reviews and final decision remain available in this project.'
+                    : ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(project.status)
+                      ? 'The project is active. Authors submit evidence within each milestone; the main Reviewer reviews that work and provides feedback there.'
+                      : 'The project activates when its Author or lead and main Reviewer have joined.'}
+                </p>
+                <button
+                  className="button secondary"
+                  onClick={() => setParams({ tab: 'milestones' })}
+                >
+                  Open milestones
+                </button>
+              </section>
+            ) : (
+              <section className="panel form-panel live-section">
+                <h2>Proposal history & feedback</h2>
+                <p>
+                  Proposal feedback concerns the project plan. Milestone feedback concerns evidence
+                  submitted for an individual milestone.
+                </p>
+                {!project.proposals.length && <p>No proposals submitted yet.</p>}
+                {project.proposals.map((proposal) => (
+                  <details
+                    key={proposal.id}
+                    open={
+                      project.role === 'MAIN_REVIEWER' &&
+                      project.status === 'PROPOSAL_IN_REVIEW' &&
+                      proposal.id === latest?.id
+                    }
+                  >
+                    <summary>
+                      Version {proposal.version} ·{' '}
+                      {proposal.decision
+                        ? proposal.decision.replaceAll('_', ' ').toLowerCase()
+                        : 'Awaiting review'}
+                    </summary>
+                    <h3>{proposal.structure.title}</h3>
+                    <p>{proposal.structure.description}</p>
+                    <p>
+                      Project deadline: {dateLabel(proposal.structure.dueDate)}
+                      {proposal.structure.timezone ? ` · ${proposal.structure.timezone}` : ''}
+                    </p>
+                    <h4>Objectives</h4>
+                    <ul>
+                      {proposal.structure.objectives.map((o, i) => (
+                        <li key={i}>{o}</li>
+                      ))}
+                    </ul>
+                    <h4>Milestones</h4>
+                    <ol>
+                      {proposal.structure.milestones.map((m) => (
+                        <li key={m.id}>
+                          {m.title}
+                          {m.required ? ' (required)' : ' (optional)'} · {dateLabel(m.dueDate)}
+                          {m.objectiveIds?.map((id) => (
+                            <p key={id}>
+                              Supports:{' '}
+                              {proposal.structure.objectives[
+                                proposal.structure.objectiveIds?.indexOf(id) ?? -1
+                              ] ?? 'Objective'}
+                            </p>
+                          ))}
+                          {m.expectedEvidence?.map((r) => (
+                            <p key={r.id}>
+                              Expected evidence: {r.title} · {r.required ? 'Required' : 'Optional'}
+                            </p>
+                          ))}
+                        </li>
+                      ))}
+                    </ol>
+                    <h4>Deliverables</h4>
+                    <ul>
+                      {proposal.structure.deliverables.map((d) => (
+                        <li key={d.id}>
+                          {d.title}
+                          {d.required ? ' (required)' : ' (optional)'}
+                        </li>
+                      ))}
+                    </ul>
+                    {proposal.feedback && (
+                      <p>
+                        <strong>Proposal feedback:</strong> {proposal.feedback}
+                      </p>
+                    )}
+                  </details>
+                ))}
+                {project.role === 'MAIN_REVIEWER' &&
+                  project.status === 'PROPOSAL_IN_REVIEW' &&
+                  latest && (
+                    <form className="live-inline-form" onSubmit={(e) => void decide(e)}>
+                      <h3>Review this proposal</h3>
+                      <label>
+                        Decision
+                        <select name="decision">
+                          <option value="APPROVE">Approve</option>
+                          <option value="REQUEST_CHANGES">Request changes</option>
+                          <option value="REJECT">
+                            Reject — this closes the proposal permanently
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        Proposal feedback
+                        <textarea name="feedback" maxLength={2000} rows={3} />
+                      </label>
+                      <p className="muted">
+                        Explain requested changes or rejection. Your decision applies to the
+                        submitted version shown above.
+                      </p>
+                      <button disabled={busy} className="button primary">
+                        Save decision
+                      </button>
+                    </form>
+                  )}
+              </section>
+            )}
+            <ProjectCoverage projectId={project.id} version={project.version} />
+          </LiveProjectOverview>
+        ) : null}
+        {tab === 'changes' && <ProjectChanges project={project} api={api} run={run} busy={busy} />}
+        {tab === 'team' && <ProjectTeamPanel project={project} api={api} run={run} busy={busy} />}
+        {['milestones', 'evidence', 'feedback'].includes(tab) && (
+          <section className="panel form-panel">
+            <h2>
+              {tab === 'milestones'
+                ? 'Milestones'
+                : tab === 'evidence'
+                  ? 'Evidence, connected to your process'
+                  : 'Milestone feedback and revisions'}
+            </h2>
+            <p>
+              {project.role === 'MAIN_REVIEWER'
+                ? 'Open a milestone to review submitted evidence, share feedback or decide on a revision.'
+                : 'Open a milestone to work on its evidence and continue the feedback conversation.'}
+            </p>
+            <LiveMilestoneList project={project} />
+            {!!project.archived_milestones.length && (
+              <details>
+                <summary>Removed milestones · preserved history</summary>
+                <ul>
+                  {project.archived_milestones.map((m) => (
+                    <li key={m.id}>
+                      <Link to={`/projects/${id}/milestones/${m.id}`}>{m.title}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </section>
+        )}
+        {tab === 'activity' && (
+          <>
+            <ProjectNotifications projectId={id} />
+            <section className="panel form-panel live-section">
+              <h2>Project history</h2>
+              <ul className="live-events">
+                {project.events.map((e) => (
+                  <li key={e.id}>
+                    <strong>{e.action.replaceAll('_', ' ').toLowerCase()}</strong>
+                    <span>
+                      {e.actor} · {new Date(e.created_at).toLocaleString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </>
+        )}
+      </div>
     </>
   );
 }

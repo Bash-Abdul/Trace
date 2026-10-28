@@ -1,31 +1,58 @@
+import { dueDateSchema, timezoneSchema } from '../deadlines/deadlines.schema.js';
 import { z } from 'zod';
 
 const title = z.string().trim().min(1).max(120);
+export const requirementSchema = z
+  .object({ id: z.uuid().optional(), title, required: z.boolean() })
+  .strict();
+export const milestoneItemSchema = z
+  .object({
+    id: z.uuid().optional(),
+    title,
+    required: z.boolean(),
+    dueDate: dueDateSchema,
+    objectiveIds: z.array(z.uuid()).max(20).optional(),
+    expectedEvidence: z.array(requirementSchema).max(30).optional(),
+  })
+  .strict();
+const startingItem = z.object({ title, required: z.boolean() }).strict();
 
 export const briefSchema = z.object({
+  dueDate: dueDateSchema,
+  timezone: timezoneSchema,
   title,
   description: z.string().trim().min(1).max(2000),
   objectives: z.array(z.string().trim().min(1).max(500)).min(1).max(20),
+  objectiveIds: z.array(z.uuid().nullable()).max(20).optional(),
 });
 
 export const createProjectSchema = briefSchema
   .extend({
     projectType: z.enum(['INDIVIDUAL', 'GROUP']),
     approvalRoute: z.enum(['IN_PLATFORM_PROPOSAL', 'EXTERNALLY_APPROVED']),
-    templateKey: z.enum(['design', 'research', 'software', 'independent']),
+    templateKey: z.enum(['design', 'research', 'software', 'independent', 'custom']),
+    milestones: z
+      .array(milestoneItemSchema.omit({ id: true }))
+      .min(1)
+      .max(30)
+      .optional(),
+    deliverables: z.array(startingItem).min(1).max(20).optional(),
     creatorRole: z.enum(['LEAD_AUTHOR', 'MAIN_REVIEWER']).default('LEAD_AUTHOR'),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) =>
+      input.templateKey !== 'custom' ||
+      (input.milestones !== undefined && input.deliverables !== undefined),
+    { message: 'Custom projects require milestones and deliverables' },
+  );
 
 export const versionSchema = z.object({ version: z.number().int().positive() }).strict();
 
 export const draftSchema = briefSchema
   .extend({
     version: versionSchema.shape.version,
-    milestones: z
-      .array(z.object({ id: z.string().uuid().optional(), title, required: z.boolean() }).strict())
-      .min(1)
-      .max(30),
+    milestones: z.array(milestoneItemSchema).min(1).max(30),
     deliverables: z
       .array(z.object({ id: z.string().uuid().optional(), title, required: z.boolean() }).strict())
       .min(1)

@@ -20,7 +20,7 @@ export function PortfolioIndex() {
           <Link
             className={`portfolio-cover ${p.color}`}
             key={p.id}
-            to={`/projects/${p.id}/portfolio`}
+            to={`/demo/projects/${p.id}/portfolio`}
           >
             <div className="section-heading">
               <BookOpen size={24} />
@@ -55,7 +55,7 @@ export function PortfolioPage() {
   return (
     <>
       <div className="portfolio-toolbar">
-        <Link className="back-link" to={`/projects/${project.id}`}>
+        <Link className="back-link" to={`/demo/projects/${project.id}`}>
           <ArrowLeft size={15} />
           Back to project
         </Link>

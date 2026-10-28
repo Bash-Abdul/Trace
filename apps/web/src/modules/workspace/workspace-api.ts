@@ -1,8 +1,55 @@
 import { z } from 'zod';
 
 const roleSchema = z.enum(['LEAD_AUTHOR', 'AUTHOR', 'MAIN_REVIEWER', 'DORMANT_REVIEWER']);
-const item = z.object({ id: z.string(), title: z.string(), required: z.boolean() });
+const deadlineSchema = z.object({
+  state: z.enum([
+    'NO_DUE_DATE',
+    'SCHEDULED',
+    'DUE_SOON',
+    'DUE_TODAY',
+    'OVERDUE',
+    'APPROVED',
+    'INACTIVE',
+  ]),
+  daysRemaining: z.number().nullable(),
+});
+const requirement = z.object({ id: z.string(), title: z.string(), required: z.boolean() });
+const item = requirement.extend({
+  dueDate: z.string().nullable().optional(),
+  objectiveIds: z.array(z.string()).optional(),
+  expectedEvidence: z.array(requirement).optional(),
+});
+const progressSchema = z.object({
+  deliverables: z
+    .array(
+      z.object({
+        id: z.string(),
+        required: z.boolean(),
+        state: z.enum(['NOT_STARTED', 'DRAFT', 'SUBMITTED']),
+        currentSubmissionId: z.string().nullable(),
+        number: z.number().nullable(),
+      }),
+    )
+    .optional(),
+  milestones: z.array(
+    z.object({
+      id: z.string(),
+      required: z.boolean(),
+      title: z.string().optional(),
+      dueDate: z.string().nullable().optional(),
+      deadline: deadlineSchema.optional(),
+      state: z.enum(['NOT_STARTED', 'DRAFT', 'AWAITING_REVIEW', 'REVISION_REQUESTED', 'APPROVED']),
+      evidence_count: z.number(),
+    }),
+  ),
+  unresolved_feedback: z.number(),
+  blocking_feedback: z.number(),
+  members: z.array(z.object({ user_id: z.string(), email: z.string() })),
+});
 export const summarySchema = z.object({
+  dueDate: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
+  deadline: deadlineSchema.optional(),
   id: z.string(),
   title: z.string(),
   description: z.string(),
@@ -14,19 +61,40 @@ export const summarySchema = z.object({
     'PROPOSAL_CHANGES_REQUESTED',
     'PROPOSAL_REJECTED',
     'ACTIVE',
+    'FINAL_APPROVAL_PENDING',
+    'COMPLETED',
   ]),
   version: z.number(),
+  template_key: z.string().optional(),
+  progress: progressSchema.optional(),
   role: roleSchema,
 });
-const structureSchema = z.object({
+export const structureSchema = z.object({
+  dueDate: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
   title: z.string(),
   description: z.string(),
   objectives: z.array(z.string()),
+  objectiveIds: z.array(z.string()).optional(),
   milestones: z.array(item),
   deliverables: z.array(item),
 });
 export const detailSchema = summarySchema.extend({
+  archived_milestones: z.array(item).default([]),
+  archived_deliverables: z.array(item).default([]),
+  former_members: z
+    .array(
+      z.object({
+        user_id: z.string(),
+        email: z.string(),
+        role: roleSchema,
+        joined_at: z.string(),
+        removed_at: z.string(),
+      }),
+    )
+    .default([]),
   objectives: z.array(z.string()),
+  objectiveIds: z.array(z.string()).optional(),
   milestones: z.array(item),
   deliverables: z.array(item),
   members: z.array(z.object({ user_id: z.string(), email: z.string(), role: roleSchema })),
@@ -50,7 +118,13 @@ export const detailSchema = summarySchema.extend({
     }),
   ),
   events: z.array(
-    z.object({ id: z.string(), action: z.string(), actor: z.string(), created_at: z.string() }),
+    z.object({
+      id: z.string(),
+      action: z.string(),
+      actor: z.string(),
+      created_at: z.string(),
+      details: z.unknown().optional(),
+    }),
   ),
 });
 export const templatesSchema = z.object({
@@ -77,6 +151,8 @@ export const statusLabels = {
   PROPOSAL_CHANGES_REQUESTED: 'Changes requested',
   PROPOSAL_REJECTED: 'Proposal rejected',
   ACTIVE: 'Active',
+  FINAL_APPROVAL_PENDING: 'Awaiting final approval',
+  COMPLETED: 'Completed',
 };
 export class ProjectError extends Error {
   constructor(

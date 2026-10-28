@@ -1,3 +1,4 @@
+import type { Deadline } from '../deadlines/deadlines.types.js';
 import type { z } from 'zod';
 import type {
   draftSchema,
@@ -18,6 +19,10 @@ export type NewFeedback = z.infer<typeof feedbackSchema>;
 export type FeedbackUpdate = z.infer<typeof feedbackUpdateSchema>;
 export type State = 'NOT_STARTED' | 'DRAFT' | 'AWAITING_REVIEW' | 'REVISION_REQUESTED' | 'APPROVED';
 export interface Evidence {
+  objectiveIds?: string[];
+  expectationIds?: string[];
+  objectiveMappings?: { id: string; title: string }[];
+  expectationMappings?: { id: string; title: string; required: boolean }[];
   id: string;
   title: string;
   kind: 'TEXT' | 'LINK';
@@ -26,6 +31,12 @@ export interface Evidence {
   updated_by: string;
 }
 export interface Submission {
+  coverage?: {
+    dueDate?: string | null;
+    timezone?: string | null;
+    objectives: { id: string; title: string }[];
+    expectedEvidence: { id: string; title: string; required: boolean }[];
+  } | null;
   id: string;
   number: number;
   evidence: Evidence[];
@@ -54,7 +65,15 @@ export interface FeedbackMessage {
   created_at: Date;
 }
 export interface Detail {
-  milestone: { id: string; title: string; required: boolean };
+  deadline?: Deadline;
+  milestone: {
+    id: string;
+    title: string;
+    required: boolean;
+    archived_at: Date | null;
+    dueDate?: string | null;
+    timezone?: string | null;
+  };
   version: number;
   state: State;
   evidence: Evidence[];

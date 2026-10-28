@@ -87,7 +87,7 @@ export function AccountPage() {
       <p className="eyebrow">YOUR TRACE ACCOUNT</p>
       <div className="account-heading">
         <h1>A space of your own.</h1>
-        <Link className="button primary" to="/workspace">
+        <Link className="button primary" to="/projects">
           Open my projects
         </Link>
 
@@ -103,10 +103,10 @@ export function AccountPage() {
         <h2>Your account is ready.</h2>
         <p>
           Create your own project, invite your team or Reviewer, and take your proposal through
-          approval. The sample workspace remains available to explore later workflows.
+          approval. Your overview brings your projects together.
         </p>
         <Link className="text-link" to="/overview">
-          Explore sample projects
+          Open overview
           <ArrowUpRight size={15} />
         </Link>
       </div>

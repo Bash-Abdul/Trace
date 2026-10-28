@@ -2,6 +2,369 @@
 
 The [backend engineering plan](./backend-engineering-plan.md) is the authoritative source for product and architecture decisions.
 
+## Frontend integration — October 28, 2026
+
+Removed the remaining sample-backed dashboard count/activity and connected global activity to
+project history. Live settings links to existing account/session controls; demo settings/activity
+now have explicit `/demo` routes. Portfolio navigation/index is author-focused; assigned reviewers
+retain read-only project access. Includes the portfolio presentation correction after owner review.
+See [frontend-integration.md](./frontend-integration.md) for the route inventory and API limits.
+Next: owner-led change list and MVP review before remaining release work. Reviewer handover stays last.
+
+## Process portfolio and completion checkpoint — October 27, 2026
+
+Issue #13 is implemented using the original demo portfolio layout. `/portfolio` lists current
+account projects and `/projects/:projectId/portfolio` opens the authenticated live/final document.
+Original sample portfolios remain under `/demo/projects/:projectId/portfolio`. The portfolio covers
+metadata/activation, attribution, proposal versions, milestone evidence/history, feedback/replies,
+plan changes, final deliverable versions, readiness/final checklist and activity. Printing uses the
+browser and existing A4 styles. Private file/image integration remains #2.
+
+New completions atomically capture a version-2 manifest with frozen record data and a full timeline.
+Older manifests remain readable by their saved identifiers. Current membership is checked on every
+read, including final records. See [process-portfolio.md](./process-portfolio.md).
+
+This checkpoint includes optional due dates (#10), final deliverables (#11), final approval (#12)
+and portfolio (#13), plus final-request invalidation for earlier change/group/coverage features.
+Verified checkpoint for `origin/test` and reconciliation of completed issues #7–#13 on roadmap #19.
+`pnpm verify` passed formatting, lint, type checking, 61 API unit tests, 101 database integration
+tests, 8 web unit tests and both builds. All 17 controlled browser tests and all 3 live API/browser
+flows passed, including portfolio access, completion, mobile layout and browser PDF generation.
+The high-severity dependency audit passed; five moderate advisories remain. The web build retains
+its bundle-size warning. Remaining work follows #14/#15 and the existing upload/email/release issues;
+reviewer handover (#17) stays last. Then review/polish the MVP with the owner before deployment.
+
+## Final approval and completion — October 27, 2026
+
+Issue #12 is implemented locally in the original finish-line panel. Required milestone approvals,
+current required deliverable submissions, required-evidence omissions, blocking feedback, proposed
+major changes and current main-Reviewer membership determine readiness. Optional dates never gate
+completion. Current templates define no additional declarations; none were invented.
+
+The individual Author/group lead requests or withdraws approval. The current main Reviewer can
+approve or request revision with feedback. Pending requests preserve an immutable checklist/plan
+and exact submission IDs. Authorized changes to work, feedback, plan or accepted membership invalidate
+pending requests. Decision handling rechecks authority and snapshot equality under the shared
+project lock. Request/decision retry keys prevent duplicate history, events and notifications.
+
+Completion, decision, audit, in-app notifications and the final portfolio manifest commit atomically.
+Completed projects are read-only, appear under the Completed filter and retain all prior histories.
+The review queue and notifications link to final approval. The approved snapshot is ready for the
+next increment: authenticated live/printable portfolio rendering (#13). See [final-approval.md](./final-approval.md).
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 61 API unit tests,
+97 database integration tests, 8 web unit tests and both builds. All 17 controlled browser tests
+and all three live API/browser flows passed, including final-request invalidation, revision,
+completion, read-only outputs and the Completed filter. The applied migration is `1793140000000_final-approval` in isolated test and local development
+databases. The existing web bundle-size warning remains.
+This increment, optional dates and deliverables remain local and uncommitted on `test`.
+Reviewer handover (#17) remains last; host after the main product work, then do the broader cleanup.
+
+## Final deliverable submissions — October 27, 2026
+
+Issue #11 now has shared text/link drafts, lead-only submission, immutable attributed versions,
+explicit revisions, archived requirement history and in-app notifications. The original project
+Overview's final-deliverables panel opens the connected output page. Required submission status
+feeds the existing checklist. See [final-deliverables.md](./final-deliverables.md).
+
+All mutations use the existing authenticated transaction and project lock. Optimistic versions
+reject stale edits; current membership and roles are checked after locking. Changed requirements
+require resubmission, while reordering and date-only changes retain current submissions. Saves
+with unchanged content retain the previous editor attribution.
+
+Final requests/decisions do not exist yet. Issue #12 must bind requests to exact submitted versions,
+invalidate pending requests when applicable work changes, enforce required milestone/evidence/
+deliverable and blocking-feedback conditions, and allow only the current main Reviewer to approve.
+Deliverable submission alone never completes a project. Reviewer handover (#17) remains last.
+
+`pnpm verify` passed formatting, lint, types, 61 API unit tests, 90 integration tests,
+8 web unit tests and both builds. All 17 controlled browser tests and both live API/browser
+flows passed. The live test caught ambiguous labels on prefilled draft inputs; explicit label
+associations fixed them, and web types/lint/build passed again. The mobile submission/history
+view was inspected with no horizontal overflow. The deliverables migration is applied to the
+isolated test and local development databases. The existing web bundle-size warning remains.
+
+Due dates and deliverables remain local and uncommitted on `test`; the last pushed checkpoint
+is `39899ac`. Next product increment: final checklist, approval and completion (#12).
+
+## Optional due dates — October 27, 2026
+
+The membership/coverage checkpoint is committed and pushed to `origin/test` as `39899ac`.
+The owner wants the main product work completed, then hosted online, followed by a dedicated
+cleanup pass. Preserve the original demo presentation and avoid unrelated refactoring now.
+Reviewer handover (#17) remains the last planned feature.
+
+Issue #10 adds optional project and milestone dates. The owner confirmed on October 26:
+project timezone (suggested from the creator's browser), end-of-local-day deadlines,
+next-seven-calendar-days due-soon state, and informational overdue status. No date is required;
+existing projects receive no invented dates/timezone. See [optional-due-dates.md](./optional-due-dates.md).
+
+Dates appear in the existing creation/brief forms, project cards, milestone views and the
+live dashboard schedule. Active-project date/timezone changes use the existing major change
+review flow. Date-only changes preserve milestone approvals. Original schedules, proposals,
+change snapshots and new milestone submissions preserve their dates/timezone in history.
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 61 API unit tests,
+85 database integration tests, 8 web unit tests and both builds. All 17 controlled browser
+tests and both live API/browser flows passed. The mobile live-date panel was inspected.
+Migration `1792971000000_optional-due-dates` is applied to isolated test and local development
+databases. Existing dates remain unset. The existing web bundle-size warning remains.
+
+The due-date increment remains local and uncommitted. Next product increment is final deliverable
+submissions and versions (#11), followed by final checklist/approval/completion (#12).
+
+## Evidence requirements and coverage — October 26, 2026
+
+Issue #9 is implemented locally: stable objective identities, milestone-owned expected evidence,
+explicit draft-evidence mappings, immutable submission coverage snapshots, and factual project/
+milestone coverage. The existing brief and Changes editors support requirements; active-project
+changes require the existing main-Reviewer approval flow. Major requirement changes invalidate
+applicable milestone approvals without changing old submitted content or coverage.
+
+Existing demo page layouts remain. Coverage is an additional panel; mapping controls expand
+inside the existing milestone editor. Objective rows now keep their IDs when edited/reordered.
+The new modules are named `evidence-coverage` so source files are not swallowed by the repository's
+`coverage/` build-output ignore rule.
+
+See [evidence-coverage.md](./evidence-coverage.md) for usage, API contracts and state semantics.
+Required omissions are exposed for final eligibility (#12); this increment does not implement
+final approval or make evidence independently approvable. Pre-migration change proposals remain
+usable when their original plan matches, without rewriting saved snapshots.
+
+Verification: `pnpm verify` passed formatting, lint, types, 54 API unit tests, 82 database
+integration tests, 7 web unit tests and both builds. All 16 controlled browser tests passed;
+the new mobile editor screenshot was inspected. Both live API/browser flows passed, including
+author mapping choices and Reviewer access to submitted coverage. Both coverage migrations are
+applied to the isolated test and local development databases. The existing web bundle-size
+warning remains.
+
+Group management (#8) and this coverage increment form the verified membership/coverage checkpoint. Next: due dates
+and upcoming/overdue projections (#10), with timezone/date semantics agreed before implementation.
+Reviewer handover (#17) stays last; native mobile and separate chat remain future phases.
+
+## Group membership management — October 25, 2026
+
+Project-change checkpoint `7fb8636` is pushed to `origin/test`, including the external
+approval route explanation. Group member removal and lead transfer (#8) are implemented
+locally in the existing Team panel, with reason/confirmation, stale-request feedback and
+former-Author history. Removal ends current membership without deleting contributions;
+transfer preserves the original creator and makes the outgoing lead a contributing Author.
+Pending invitations issued under obsolete lead authority are cancelled. Former Authors
+cannot be invited as Reviewers of their own work.
+
+See [group-members.md](./group-members.md) for endpoints, membership/archive behaviour
+and concurrency fixes. Migration `1792891000000_membership-history` has been applied to
+the isolated test and local development databases. A reproduced account/project deadlock
+required a compatible session-account lock mode; a second reproduced stale JOIN required
+membership to be reread after obtaining the project lock. Reset/revocation serialization
+is retained. Group changes are included in the membership/coverage checkpoint; reviewer handover (#17) stays last.
+
+Next product increment: objective/expected-evidence mappings and factual coverage (#9).
+
+Verification: `pnpm verify` passed formatting, lint, type checking, 54 API unit tests,
+75 database integration tests, 7 web unit tests and both builds. All 15 controlled
+browser tests passed; the mobile confirmation check also passed after its spacing
+adjustment. Both live API/browser flows passed again after the concurrency fixes,
+including removal, re-invitation and lead transfer. Mobile confirmation and Team
+screenshots were inspected. The web build retains its bundle-size warning.
+
+## Controlled project changes — October 25, 2026
+
+Issue #7 is implemented locally: the project Changes tab supports declared minor
+wording edits, collaborative major-change drafts, lead submission/withdrawal and
+current-main-reviewer approval/rejection. Before/after comparisons and minor history
+reuse the existing presentation. Review queue and in-app notifications include changes.
+No email or reviewer-handover work is included.
+
+Removed milestones are archived, never cascade-deleted with their evidence. Their
+history remains linked from Milestones; existing feedback can still be resolved.
+Changed expectations invalidate affected current approvals while preserving previous
+decisions. Affected draft versions also increment. Pending affected submissions must
+be decided before applying a change. Full behaviour, limits and routes are in
+[project-changes.md](./project-changes.md).
+
+Migration `1792890000000_project-changes` is additive and deliberately forward-only.
+It was tested against the isolated test database before application to development.
+Verification: 54 API unit/HTTP tests, 68 database integration tests, 7 web unit tests,
+13 controlled browser tests and both live API/browser flows passed. Type checking,
+lint, formatting and builds passed; desktop/mobile comparison screenshots inspected.
+Externally approved projects show an approval-route explanation and a milestone
+action instead of the irrelevant proposal history/review form. A focused browser
+regression covers that distinction. This increment is included in the project-change
+checkpoint. Next product work is group member removal and
+lead transfer (#8); reviewer handover/succession (#17) remains last.
+
+## Remaining-work tracking and priority — October 25, 2026
+
+[Roadmap #19](https://github.com/Bash-Abdul/Trace/issues/19) links existing issues #1–#6
+and new feature issues #7–#18. It distinguishes completed notification functionality
+from remaining work, records blocking-feedback enforcement under final approval (#12),
+and tracks history pagination/idempotency (#15). SSE (#5) is optional for MVP; native
+mobile (#18) is a separate future phase, while responsive web remains required.
+
+The owner's latest priority is explicit: **reviewer handover/succession (#17) is the
+last planned feature**. Group lead transfer (#8) remains earlier. Next is controlled
+changes to approved projects (#7). This supersedes earlier phase ordering in this
+handoff and the original roadmap; preserve the original demo design throughout.
+
+## Explicit feedback threads — October 24, 2026
+
+Feedback is now labelled and displayed as threads: an opening Reviewer comment,
+participant avatars/roles/timestamps, indented replies with a connecting line, a reply
+count and show/hide controls. Reply opens the existing action-aware composer; resolved
+threads offer Reviewer reopening. The submitted-version label and status remain visible.
+Replies are one level deep; no nested subthread model or backend workflow was added.
+The existing styles and help explanations are retained.
+
+October 25 checkpoint: notification inbox, help hints and feedback threads are included
+in the next `test` branch commit. Final thread changes passed web type checking, lint,
+build and both real API/browser flows, including reply visibility and resolution.
+
+## Milestone conversation clarity — October 24, 2026
+
+The milestone page now explains the role/state-specific next step. Submitted snapshots,
+feedback conversations and the actual review decision are named separately. Reviewers
+open a version-specific conversation composer explicitly; thread reply/update forms
+stay hidden until requested. The retained action dropdown changes the explanation,
+message label and submit button. Failed saves retain the form; successful saves close it.
+Author addressing still requires a separate evidence resubmission after revision requests.
+Reviewer resolution still does not approve a milestone. No backend permissions changed.
+
+Blocking feedback remains a recorded flag/checklist input, NOT an enforced milestone
+approval gate. The UI states this explicitly and directs Reviewers to Request revision
+when a new submission is required. Final-project approval remains unimplemented.
+Small help icons support hover, focus, tap and Escape for the path ahead, final
+deliverables, submitted work, decisions, feedback and the blocking flag. Existing demo
+styles/navigation are retained. Browser checks exercise hidden/revealed forms and the
+complete Author-addresses/Reviewer-resolves/revised-submission flow.
+
+## Notification inbox — October 24, 2026
+
+Design restoration/security checkpoint `143bfda` was pushed to `origin/test` before
+this increment. The existing top-bar bell now opens a persistent inbox with unread
+count, read/unread controls, mark-all and paginated history. Proposal and milestone
+notifications link to their existing work screens. Recipient/membership filtering
+applies to reads and updates; notification writes commit with domain actions.
+Workspace action toasts reuse the existing style. No email delivery is claimed.
+
+See [notifications.md](./notifications.md) for API contracts, migration, recipients
+and refresh behaviour. Migration `1792800000000_notification-inbox` is required;
+existing notification rows are preserved. The migration has been applied to this
+machine’s local development database as well as the isolated test database.
+No navigation or project-design rewrite.
+The read/unread inbox and workspace action-toast portion of issue #4 is implemented;
+email delivery (#3/#1), preferences and additional notification channels remain separate.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 62 integration and 7 web unit
+tests, plus builds). All 13 controlled browser checks and both real API/browser
+flows passed, including opening a proposal notification and persisting its read state.
+Desktop/mobile inbox screenshots were inspected. Notification changes are included
+with the feedback-thread checkpoint above.
+
+## Restore original project presentation — October 24, 2026
+
+The original demo at `1964b86` is the design reference. Project cards again use its
+coloured template icons, progress segments, member avatars and feedback strip.
+Project detail uses its heading metadata, numbered objectives, milestone rows and
+two-column overview with At a glance, Final deliverables and completion panels.
+The existing navigation was left unchanged. Proposal actions retain their existing
+permissions; history remains available below the milestone plan with older snapshots
+collapsed. Do not replace these layouts with generic form panels when wiring APIs.
+
+List/detail responses now include a read-only `progress` summary: current milestone
+states, draft evidence counts, unresolved/blocking thread counts and member identities.
+The projection shares the existing membership-filtered query and its snapshot; no
+migration or per-card API request is needed. Counts cover all submission versions.
+Missing dates are labelled No due date. Final deliverable submission and final
+approval remain unavailable, with their original panel placement preserved.
+
+Zod is updated to 4.6.7 and body-parser to 2.4.0 (qs 6.16.1). Fresh package metadata
+was needed for the transitive update; no override or audit suppression was added.
+`pnpm audit --audit-level=high` now passes; four moderate advisories remain.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 59 database integration,
+7 web unit tests and builds). All 12 controlled browser tests and both real API
+flows passed. Final UI follow-ups passed web typecheck/lint, formatting and the
+focused desktop/mobile layout check. Screenshots were inspected against the demo.
+
+## UI reference and push checkpoint — October 24, 2026
+
+User reiterated that the original demo presentation must remain the visual reference.
+Integrate API data into its existing components; do not simplify or redesign screens
+as a side effect of wiring endpoints. The original complete demo is preserved at
+commit `1964b86`. Current `/demo/projects` and `/demo/reviews` retain sample pages,
+but share the modified live shell and are not the full original workspace.
+
+Pre-push `pnpm audit --audit-level=high` reported two high advisories: Zod
+GHSA-mrhx-c7xc-m3w5 (patched >=4.6.6) and body-parser GHSA-27r3-jxmh-p828
+(patched >=2.4.0), plus four moderate advisories. Dependency fixes and revalidation
+remain outstanding; the CI audit gate may fail for this checkpoint.
+
+## Live review queue — October 24, 2026
+
+`/reviews` now consolidates real proposal reviews, milestone submissions and unresolved
+milestone feedback. The sidebar attention count and overview review/feedback cards use
+the same queue. Authors see revision/response work; Main Reviewers see pending decisions
+and addressed threads. Existing layout and labelled unfinished demos are preserved;
+the original sample review page is available at `/demo/reviews`.
+
+Validation: `pnpm verify` passed (54 API unit/HTTP, 58 database integration and
+7 web unit tests, plus builds). All 11 controlled browser tests and both real API
+browser flows passed; desktop/mobile queue screenshots were inspected. Final web
+typecheck/lint and repository formatting checks passed after the UI follow-ups.
+
+See [reviews.md](./reviews.md) for role rules, result limits and refresh behaviour.
+No migration is required. The queue is current work, not a read/unread notification
+inbox. App-wide notifications (#4) are the next increment; invitation emails (#3)
+and automatic email-worker operation (#1) remain separate follow-ups.
+
+## Editable starting structure and feedback clarity — October 23, 2026
+
+Project creation accepts optional milestone/deliverable overrides on existing presets,
+or `templateKey: custom` with both collections required. The frontend supports
+editing/reordering required or optional rows before creation; the draft editor now
+sends explicit IDs and preserves flags. This customises one project's starting plan,
+not the shared preset or a reusable template library. Existing API defaults remain
+compatible, source provenance is retained, and no migration is required.
+
+Top-nav Author/Reviewer dropdown is replaced by a fixed label. Proposal feedback,
+milestone feedback threads and milestone decision explanations are named explicitly.
+Blocking feedback still does not gate milestone approval; final-approval eligibility
+remains future work. See projects.md and milestones.md for workflow boundaries.
+
+`pnpm verify` passed: 54 API unit/HTTP, 54 database integration and 7 web tests;
+ten controlled browser checks passed. Live-browser verification includes custom
+creation, ordering and optional flags alongside the proposal/milestone review flow.
+
+## Connected workspace — October 23, 2026
+
+On branch `test`, the former sample sidebar/card layout is connected to real APIs.
+`/overview`, `/projects`, creation/details, `/reviews` and milestone pages require
+sign-in. Existing `/workspace` links redirect to the corresponding routes. The
+existing live project/milestone components are reused inside the styled shell;
+project permissions and all backend contracts remain unchanged. No migration.
+
+UI constraint: preserve the original demo layout and retain unfinished features as
+labelled, usable demos. The original sidebar, four-card overview, illustration,
+activity/upcoming panels and portfolio preview are restored. DemoProvider remains
+mounted for isolated `/demo/projects/...` workflows, portfolio/activity/settings and
+sample feedback. Never use sample records as live API records.
+
+Reviewer-only accounts default to a distinct review desk. The top bar now displays
+a fixed Author/Reviewer label; mixed-role accounts reach reviews via the sidebar,
+and project routes derive presentation from actual membership. Project tabs are restored, with evidence/feedback
+linking to their live milestone workflows. Live counts cover at most 100 projects;
+remaining sample overview numbers and due dates are labelled Demo preview.
+
+Verification passed: seven web unit tests, ten controlled browser tests and both
+real API browser flows, including the restored project tabs. Web lint/typecheck/build
+and final formatting checks also passed after UI follow-ups. Changes are local and
+uncommitted on `test`.
+
+Follow-ups: invitation emails and status feedback (#3), app-wide notifications/toasts
+(#4), evidence coverage/mappings and final deliverable approval. File/image uploads
+remain deferred in #2. Automatic email worker operation remains #1.
+
 ## Milestone evidence checkpoint — October 22, 2026
 
 Text/link evidence is connected to the live workspace. Open an active project,

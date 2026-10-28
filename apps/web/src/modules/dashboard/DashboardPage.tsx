@@ -1,3 +1,4 @@
+import { DeadlineLabel } from '../deadlines/DeadlineLabel';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -10,81 +11,134 @@ import {
   Plus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useDemo } from '../../app/providers/DemoProvider';
-import { Avatar, formatDate, SectionHeading } from '../../shared/ui/Primitives';
-import { ProjectCard } from '../projects/components/ProjectCard';
+import { LiveActivityFeed } from '../activity/LiveActivityPage';
+import { SectionHeading } from '../../shared/ui/Primitives';
+import { useWorkspaceView } from '../../app/providers/WorkspaceViewProvider';
+import { useAuth } from '../auth/AuthProvider';
+import { LiveProjectCard } from '../projects/components/LiveProjectCard';
+import { reviewDestination } from '../reviews/reviews-api';
+import { ProjectListState } from '../projects/components/ProjectListState';
 
 export function DashboardPage() {
-  const { projects, persona } = useDemo();
-  const milestones = projects.flatMap((p) => p.milestones.map((m) => ({ ...m, project: p })));
-  const reviewCount = milestones.filter((m) => m.status === 'awaiting-review').length;
-  const feedbackCount = projects.reduce(
-    (sum, p) => sum + p.feedback.filter((f) => f.status === 'open').length,
-    0,
+  const { projects: liveProjects, error, retry, persona, queue } = useWorkspaceView();
+  const { session } = useAuth();
+  const realProjects = (liveProjects ?? []).filter((p) =>
+    persona === 'reviewer'
+      ? ['MAIN_REVIEWER', 'DORMANT_REVIEWER'].includes(p.role)
+      : ['LEAD_AUTHOR', 'AUTHOR'].includes(p.role),
   );
-  const approved = milestones.filter((m) => m.status === 'approved').length;
-  const next = milestones
-    .filter((m) => m.status !== 'approved')
-    .sort((a, b) => a.due.localeCompare(b.due))
+  const focusItem = queue.data?.items.find(
+    (item) => item.perspective === persona && item.needs_attention,
+  );
+  const awaitingReview = queue.data?.items.filter(
+    (item) =>
+      item.perspective === persona &&
+      ['PROPOSAL_IN_REVIEW', 'AWAITING_REVIEW'].includes(item.state),
+  ).length;
+  const milestones = realProjects.flatMap((p) => p.progress?.milestones ?? []);
+  const feedbackCount = queue.data?.items.filter(
+    (item) => item.perspective === persona && item.kind === 'MILESTONE_FEEDBACK',
+  ).length;
+  const approved = milestones.filter((m) => m.state === 'APPROVED').length;
+  const next = realProjects
+    .filter((p) => p.status !== 'PROPOSAL_REJECTED')
+    .flatMap((project) => [
+      ...(project.dueDate
+        ? [
+            {
+              key: project.id,
+              title: 'Project deadline',
+              dueDate: project.dueDate,
+              project,
+              deadline: project.deadline,
+              href: `/projects/${project.id}`,
+            },
+          ]
+        : []),
+      ...(project.progress?.milestones ?? []).flatMap((m) =>
+        m.dueDate && m.state !== 'APPROVED'
+          ? [
+              {
+                key: m.id,
+                title: m.title ?? 'Milestone',
+                dueDate: m.dueDate,
+                project,
+                deadline: m.deadline,
+                href: `/projects/${project.id}/milestones/${m.id}`,
+              },
+            ]
+          : [],
+      ),
+    ])
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.key.localeCompare(b.key))
     .slice(0, 3);
-  const activity = projects
-    .flatMap((p) => p.activity.map((a) => ({ ...a, project: p })))
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 3);
-  const focusProject =
-    persona === 'author'
-      ? projects.find((p) => p.feedback.some((f) => f.status === 'open'))
-      : projects.find(
-          (p) =>
-            p.milestones.some((m) => m.status === 'awaiting-review') ||
-            p.state === 'proposal-review',
-        );
+  if (!liveProjects) return <ProjectListState error={error} retry={retry} />;
   return (
     <>
       <div className="page-heading">
         <div>
-          <p className="eyebrow greeting">YOUR WORK, IN PERSPECTIVE</p>
+          <p className="eyebrow greeting">
+            {persona === 'reviewer' ? 'YOUR REVIEW DESK' : 'YOUR WORK, IN PERSPECTIVE'}
+          </p>
           <h1>
-            A little progress, every day<span className="heading-dot">.</span>
+            {persona === 'reviewer'
+              ? 'A fresh perspective makes a difference'
+              : 'A little progress, every day'}
+            <span className="heading-dot">.</span>
           </h1>
           <p>
-            Welcome back, {persona === 'author' ? 'Bashir' : 'Maya'}. Let’s keep your projects
-            moving.
+            {persona === 'reviewer'
+              ? `Welcome back, ${session?.user.email}. Review submitted work, share feedback and follow up on revisions.`
+              : `Welcome back, ${session?.user.email}. Let’s keep your projects moving.`}
           </p>
         </div>
-        <Link className="button primary" to="/projects/new">
-          <Plus size={17} />
-          New project
+        <Link className="button primary" to={persona === 'reviewer' ? '/reviews' : '/projects/new'}>
+          {persona === 'reviewer' ? <FileCheck2 size={17} /> : <Plus size={17} />}
+          {persona === 'reviewer' ? 'Open review queue' : 'New project'}
         </Link>
       </div>
       <div className="stat-grid">
         {[
           {
             icon: FolderKanban,
-            label: 'Active projects',
-            number: projects.filter((p) => p.state === 'active').length,
-            note: 'Ideas taking shape',
+            label: persona === 'reviewer' ? 'Assigned projects' : 'Active projects',
+            number: liveProjects
+              ? persona === 'reviewer'
+                ? realProjects.length
+                : realProjects.filter((p) => p.status === 'ACTIVE').length
+              : '—',
+            note: 'Live projects',
             color: 'sage',
           },
           {
             icon: Clock3,
             label: 'Awaiting review',
-            number: reviewCount + projects.filter((p) => p.state === 'proposal-review').length,
-            note: persona === 'author' ? 'With your reviewer' : 'Ready for your feedback',
+            number: awaitingReview ?? '—',
+            note: queue.error
+              ? 'Refresh needed'
+              : queue.data?.truncated
+                ? 'Recent queue items only'
+                : persona === 'author'
+                  ? 'With your reviewer'
+                  : 'Ready for your feedback',
             color: 'peach',
           },
           {
             icon: MessageSquare,
-            label: 'Open feedback',
-            number: feedbackCount,
-            note: 'A conversation to continue',
+            label: 'Unresolved milestone feedback',
+            number: feedbackCount ?? '—',
+            note: queue.error
+              ? 'Refresh needed'
+              : queue.data?.truncated
+                ? 'Recent queue items only'
+                : 'Live milestone threads',
             color: 'blue',
           },
           {
             icon: CheckCheck,
             label: 'Milestones approved',
             number: approved,
-            note: 'Small wins, real progress',
+            note: 'Live milestones',
             color: 'lilac',
           },
         ].map(({ icon: Icon, label, number, note, color }) => (
@@ -105,34 +159,33 @@ export function DashboardPage() {
           <section className="focus-banner">
             <div className="focus-copy">
               <span className="focus-eyebrow">
-                <CircleDot size={13} />A GOOD PLACE TO PICK UP
+                <CircleDot size={13} />
+                {persona === 'reviewer' ? 'READY FOR YOUR PERSPECTIVE' : 'A GOOD PLACE TO PICK UP'}
               </span>
               <h2>
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Turn feedback into your next step.'
-                    : 'A fresh perspective makes a difference.'
-                  : 'Make space for your next idea.'}
+                {persona === 'reviewer'
+                  ? focusItem
+                    ? 'Submitted work needs your perspective.'
+                    : 'Make room for thoughtful feedback.'
+                  : focusItem
+                    ? 'A revision or response needs your attention.'
+                    : 'Your next step starts here.'}
               </h2>
               <p>
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Your reviewer has shared a few thoughts. A small revision can move the whole project forward.'
-                    : 'There’s new work ready for your attention. Help your Author see where to go next.'
-                  : 'Start a project and give your process a place to grow.'}
+                {persona === 'reviewer'
+                  ? 'Open your assigned projects to assess submissions, explain decisions and follow up on revised work.'
+                  : 'Open a project to develop your evidence and respond to your Reviewer’s feedback.'}
               </p>
               <Link
                 to={
-                  focusProject
-                    ? `/projects/${focusProject.id}${persona === 'author' ? '?tab=feedback' : ''}`
-                    : '/projects/new'
+                  focusItem
+                    ? reviewDestination(focusItem)
+                    : persona === 'reviewer'
+                      ? '/reviews'
+                      : '/projects'
                 }
               >
-                {focusProject
-                  ? persona === 'author'
-                    ? 'Continue the conversation'
-                    : 'Open project for review'
-                  : 'Create a project'}
+                {persona === 'reviewer' ? 'Review assigned work' : 'Continue your projects'}
                 <ArrowRight size={16} />
               </Link>
             </div>
@@ -154,64 +207,61 @@ export function DashboardPage() {
             </div>
           </section>
           <section className="section-spaced">
-            <SectionHeading title="Your projects" count={projects.length} to="/projects" />
-            <div className="project-grid">
-              {projects.slice(0, 2).map((p) => (
-                <ProjectCard key={p.id} project={p} />
-              ))}
-            </div>
-            {projects.length > 2 && (
-              <Link className="project-mini" to={`/projects/${projects[2]!.id}`}>
-                <span className={`project-dot ${projects[2]!.color}`} />
-                <strong>{projects[2]!.title}</strong>
-                <span>
-                  {projects[2]!.state === 'proposal-review'
-                    ? 'Proposal awaiting review'
-                    : projects[2]!.category}
-                </span>
-                <ArrowUpRight size={17} />
-              </Link>
+            <SectionHeading
+              title={persona === 'reviewer' ? 'Assigned projects' : 'Your projects'}
+              count={realProjects.length}
+              to="/projects"
+            />
+            {!liveProjects || error ? (
+              <ProjectListState error={error} retry={retry} />
+            ) : (
+              <>
+                <div className="project-grid">
+                  {realProjects.slice(0, 2).map((project) => (
+                    <LiveProjectCard key={project.id} project={project} />
+                  ))}
+                </div>
+                {!realProjects.length && (
+                  <p>
+                    {persona === 'reviewer'
+                      ? 'No projects assigned yet. Accept a Reviewer invitation to get started.'
+                      : 'No authored projects yet. Create a project to begin.'}
+                  </p>
+                )}
+                {realProjects.length > 2 && (
+                  <Link className="project-mini" to={`/projects/${realProjects[2]!.id}`}>
+                    <span className="project-dot sage" />
+                    <strong>{realProjects[2]!.title}</strong>
+                    <ArrowUpRight size={17} />
+                  </Link>
+                )}
+                {liveProjects.length >= 100 && <p>Showing up to 100 recently updated projects.</p>}
+              </>
             )}
           </section>
           <section className="section-spaced">
             <SectionHeading title="Latest activity" to="/activity" />
-            <div className="activity-card">
-              {activity.map((item) => (
-                <Link
-                  to={`/projects/${item.project.id}?tab=activity`}
-                  className="activity-row"
-                  key={`${item.project.id}-${item.id}`}
-                >
-                  <Avatar name={item.actor.includes('Maya') ? item.actor : 'Bashir Abdul'} small />
-                  <div>
-                    <p>
-                      <strong>{item.actor}</strong> {item.action}
-                    </p>
-                    <small>
-                      {item.detail} <span>·</span> {item.project.title}
-                    </small>
-                  </div>
-                  <time>{formatDate(item.date)}</time>
-                </Link>
-              ))}
-            </div>
+            <LiveActivityFeed compact />
           </section>
         </div>
         <aside className="dashboard-aside">
           <section className="panel upcoming-panel">
             <SectionHeading title="Coming up" />
-            <p className="panel-subtitle">A little focus for the days ahead.</p>
+            <p className="panel-subtitle">
+              Optional project and milestone dates, including overdue work.
+            </p>
+            {next.length === 0 && (
+              <p className="panel-subtitle">
+                No scheduled dates. You can add optional dates in the project brief.
+              </p>
+            )}
             {next.map((item) => (
-              <Link
-                className="upcoming-item"
-                key={`${item.project.id}-${item.id}`}
-                to={`/projects/${item.project.id}/milestones/${item.id}`}
-              >
+              <Link className="upcoming-item" key={`${item.project.id}-${item.key}`} to={item.href}>
                 <div className="date-tile">
-                  <strong>{new Date(item.due).getDate()}</strong>
+                  <strong>{Number(item.dueDate.slice(8, 10))}</strong>
                   <span>
-                    {new Date(item.due)
-                      .toLocaleDateString('en-GB', { month: 'short' })
+                    {new Date(`${item.dueDate}T12:00:00Z`)
+                      .toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })
                       .toUpperCase()}
                   </span>
                 </div>
@@ -219,13 +269,13 @@ export function DashboardPage() {
                   <strong>{item.title}</strong>
                   <small>{item.project.title}</small>
                   <span
-                    className={`due-label ${item.status === 'revision-requested' ? 'due-amber' : ''}`}
+                    className={`due-label ${item.deadline?.state === 'OVERDUE' ? 'due-amber' : ''}`}
                   >
-                    {item.status === 'revision-requested'
-                      ? 'Revision requested'
-                      : item.status === 'awaiting-review'
-                        ? 'With reviewer'
-                        : 'Next milestone'}
+                    <DeadlineLabel
+                      dueDate={item.dueDate}
+                      timezone={item.project.timezone}
+                      deadline={item.deadline}
+                    />
                   </span>
                 </div>
               </Link>
@@ -235,40 +285,42 @@ export function DashboardPage() {
               <ArrowRight size={15} />
             </Link>
           </section>
-          <section className="portfolio-teaser">
-            <div className="portfolio-drawing" aria-hidden="true">
-              <div className="paper-back" />
-              <div className="paper-front">
-                <span className="paper-symbol">t.</span>
-                <i />
-                <i />
-                <i />
-                <div className="paper-grid">
-                  <b />
-                  <b />
-                  <b />
-                  <b />
+          {persona === 'author' && (
+            <section className="portfolio-teaser">
+              <div className="portfolio-drawing" aria-hidden="true">
+                <div className="paper-back" />
+                <div className="paper-front">
+                  <span className="paper-symbol">t.</span>
+                  <i />
+                  <i />
+                  <i />
+                  <div className="paper-grid">
+                    <b />
+                    <b />
+                    <b />
+                    <b />
+                  </div>
                 </div>
+                <span className="paper-stamp">
+                  <CheckCheck size={22} />
+                </span>
               </div>
-              <span className="paper-stamp">
-                <CheckCheck size={22} />
-              </span>
-            </div>
-            <span className="eyebrow">BUILT ALONG THE WAY</span>
-            <h2>
-              Your process.
-              <br />
-              Your story.
-            </h2>
-            <p>
-              Your evidence, decisions, and reflections come together in a portfolio that grows with
-              you.
-            </p>
-            <Link to="/portfolio" className="text-link">
-              Preview your portfolio
-              <ArrowUpRight size={15} />
-            </Link>
-          </section>
+              <span className="eyebrow">PROCESS PORTFOLIO</span>
+              <h2>
+                Your process.
+                <br />
+                Your story.
+              </h2>
+              <p>
+                Your evidence, decisions, and reflections come together in a portfolio that grows
+                with you.
+              </p>
+              <Link to="/portfolio" className="text-link">
+                Preview your portfolio
+                <ArrowUpRight size={15} />
+              </Link>
+            </section>
+          )}
           <div className="gentle-note">
             <FileCheck2 size={17} />
             <p>Progress is more than a finished outcome. Keep a trace of how you got there.</p>

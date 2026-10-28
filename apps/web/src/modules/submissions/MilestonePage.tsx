@@ -33,7 +33,7 @@ function SubmissionWorkspace({ project, milestone }: { project: Project; milesto
   }
   return (
     <>
-      <Link to={`/projects/${project.id}?tab=milestones`} className="back-link">
+      <Link to={`/demo/projects/${project.id}?tab=milestones`} className="back-link">
         <ArrowLeft size={15} />
         {project.title}
       </Link>
@@ -71,7 +71,7 @@ function SubmissionWorkspace({ project, milestone }: { project: Project; milesto
             <strong>A chance to take the work further.</strong>
             <p>Your Reviewer requested changes. Save a revised draft to start the next version.</p>
           </div>
-          <Link className="text-link" to={`/projects/${project.id}?tab=feedback`}>
+          <Link className="text-link" to={`/demo/projects/${project.id}?tab=feedback`}>
             Read feedback
           </Link>
         </div>

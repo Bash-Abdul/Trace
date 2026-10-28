@@ -1,7 +1,8 @@
+import { Modal } from '../../shared/ui/Primitives';
 import { useState, type FormEvent } from 'react';
 import { z } from 'zod';
 import type { useProjectApi } from './use-project-api';
-import { type ProjectDetail, roleLabels } from './workspace-api';
+import { type ProjectDetail, roleLabels, projectMessage } from './workspace-api';
 
 type Api = ReturnType<typeof useProjectApi>;
 export type RunMutation = (operation: () => Promise<unknown>) => Promise<boolean>;
@@ -16,6 +17,13 @@ export function ProjectTeamPanel({
   run: RunMutation;
   busy: boolean;
 }) {
+  const [confirmation, setConfirmation] = useState<{
+    userId: string;
+    email: string;
+    action: 'remove' | 'transfer-lead';
+    version: number;
+  } | null>(null);
+  const [membershipError, setMembershipError] = useState('');
   const [link, setLink] = useState('');
   const [copyNotice, setCopyNotice] = useState('');
   const lead = project.role === 'LEAD_AUTHOR';
@@ -44,6 +52,32 @@ export function ProjectTeamPanel({
       setLink(result.invitationUrl);
     });
   }
+  async function changeMembership(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!confirmation) return;
+    const reason = String(new FormData(event.currentTarget).get('reason') ?? '');
+    setMembershipError('');
+    const succeeded = await run(async () => {
+      try {
+        return await api(
+          `/${project.id}/members/${confirmation.userId}/${confirmation.action}`,
+          z.null(),
+          {
+            method: 'POST',
+            body: { version: confirmation.version, reason },
+          },
+        );
+      } catch (error) {
+        setMembershipError(projectMessage(error));
+        throw error;
+      }
+    });
+    if (succeeded) {
+      setConfirmation(null);
+      setLink('');
+      setCopyNotice('');
+    }
+  }
   return (
     <section className="panel form-panel">
       <h2>The people behind the project</h2>
@@ -57,10 +91,111 @@ export function ProjectTeamPanel({
                 : roleLabels[m.role]}
             </small>
           </div>
-          <span>Joined</span>
+          {lead &&
+          project.project_type === 'GROUP' &&
+          !['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status) &&
+          m.role === 'AUTHOR' ? (
+            <div className="inline-actions">
+              <button
+                className="button secondary small"
+                disabled={busy}
+                onClick={() => {
+                  setMembershipError('');
+                  setConfirmation({
+                    userId: m.user_id,
+                    email: m.email,
+                    action: 'transfer-lead',
+                    version: project.version,
+                  });
+                }}
+              >
+                Make lead Author
+              </button>
+              <button
+                className="button secondary small"
+                disabled={busy}
+                onClick={() => {
+                  setMembershipError('');
+                  setConfirmation({
+                    userId: m.user_id,
+                    email: m.email,
+                    action: 'remove',
+                    version: project.version,
+                  });
+                }}
+              >
+                Remove Author
+              </button>
+            </div>
+          ) : (
+            <span>Joined</span>
+          )}
         </div>
       ))}
-      {roles.length > 0 && project.status !== 'PROPOSAL_REJECTED' && (
+      {lead && project.project_type === 'GROUP' && (
+        <p className="muted">
+          Only accepted Authors can become lead. Transfer leadership before the current lead can be
+          removed. Past contributions stay attributed to their Authors.
+        </p>
+      )}
+      {!!project.former_members.length && (
+        <details>
+          <summary>Former Authors · preserved contributions</summary>
+          {project.former_members.map((m) => (
+            <div className="team-row" key={m.user_id}>
+              <div>
+                <strong>{m.email}</strong>
+                <small>Former Author · removed {new Date(m.removed_at).toLocaleDateString()}</small>
+              </div>
+              <span>No current access</span>
+            </div>
+          ))}
+        </details>
+      )}
+      {confirmation && (
+        <Modal
+          title={
+            confirmation.action === 'remove' ? 'Remove group Author?' : 'Transfer group leadership?'
+          }
+          onClose={() => {
+            setConfirmation(null);
+            setMembershipError('');
+          }}
+        >
+          <form
+            className="modal-body form-panel"
+            onSubmit={(event) => void changeMembership(event)}
+          >
+            <p>
+              <strong>{confirmation.email}</strong>
+            </p>
+            <p>
+              {confirmation.action === 'remove'
+                ? 'This person will lose access to this project. Their evidence, submissions, feedback and attribution will remain in its history.'
+                : 'This Author will take over team management and lead-only submissions. You will remain a contributing Author and lose lead controls. Your pending invitations will be cancelled; the new lead can issue fresh links.'}
+            </p>
+            {membershipError && <p role="alert">{membershipError}</p>}
+            <label>
+              Reason for this team change
+              <textarea name="reason" required maxLength={2000} rows={3} />
+            </label>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="button secondary"
+                disabled={busy}
+                onClick={() => setConfirmation(null)}
+              >
+                Cancel
+              </button>
+              <button className="button primary" disabled={busy}>
+                {confirmation.action === 'remove' ? 'Confirm removal' : 'Confirm lead transfer'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {roles.length > 0 && !['PROPOSAL_REJECTED', 'COMPLETED'].includes(project.status) && (
         <form onSubmit={(e) => void invite(e)} className="live-inline-form">
           <h3>Invite someone</h3>
           <label>
@@ -88,7 +223,7 @@ export function ProjectTeamPanel({
           </button>
         </form>
       )}
-      {link && (
+      {link && roles.length > 0 && (
         <div className="soft-note">
           <label>
             Invitation link
@@ -122,20 +257,23 @@ export function ProjectTeamPanel({
                   : `Expires ${new Date(i.expires_at).toLocaleDateString()}`}
               </small>
             </div>
-            {roles.includes(i.role as 'AUTHOR' | 'LEAD_AUTHOR' | 'MAIN_REVIEWER') && (
-              <button
-                disabled={busy}
-                className="button secondary small"
-                onClick={() =>
-                  void run(async () => {
-                    await api(`/${project.id}/invitations/${i.id}`, z.null(), { method: 'DELETE' });
-                    setLink('');
-                  })
-                }
-              >
-                Cancel invitation
-              </button>
-            )}
+            {project.status !== 'COMPLETED' &&
+              roles.includes(i.role as 'AUTHOR' | 'LEAD_AUTHOR' | 'MAIN_REVIEWER') && (
+                <button
+                  disabled={busy}
+                  className="button secondary small"
+                  onClick={() =>
+                    void run(async () => {
+                      await api(`/${project.id}/invitations/${i.id}`, z.null(), {
+                        method: 'DELETE',
+                      });
+                      setLink('');
+                    })
+                  }
+                >
+                  Cancel invitation
+                </button>
+              )}
           </div>
         ))}
     </section>

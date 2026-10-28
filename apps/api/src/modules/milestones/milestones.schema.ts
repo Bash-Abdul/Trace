@@ -10,6 +10,8 @@ export const versionSchema = z.object({ version: z.number().int().nonnegative() 
 const evidenceSchema = z
   .object({
     id: z.string().uuid().optional(),
+    objectiveIds: z.array(z.uuid()).max(20).optional(),
+    expectationIds: z.array(z.uuid()).max(30).optional(),
     title: z.string().trim().min(1).max(120),
     kind: z.enum(['TEXT', 'LINK']),
     content: z.string().trim().min(1).max(10000),

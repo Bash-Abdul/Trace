@@ -1,14 +1,26 @@
 import { useState, type FormEvent } from 'react';
 import type { Evidence } from './milestones-api';
 
-type Item = { key: string; id?: string; title: string; kind: 'TEXT' | 'LINK'; content: string };
+type Item = {
+  key: string;
+  id?: string;
+  title: string;
+  kind: 'TEXT' | 'LINK';
+  content: string;
+  objectiveIds: string[];
+  expectationIds: string[];
+};
 export function EvidenceEditor({
   evidence,
+  objectives = [],
+  expectations = [],
   busy,
   save,
   onDirty,
 }: {
   evidence: Evidence[];
+  objectives?: { id: string; title: string }[];
+  expectations?: { id: string; title: string; required: boolean }[];
   busy: boolean;
   save: (items: Omit<Item, 'key'>[]) => Promise<void>;
   onDirty: () => void;
@@ -20,6 +32,8 @@ export function EvidenceEditor({
       title: item.title,
       kind: item.kind,
       content: item.content,
+      objectiveIds: item.objectiveIds ?? [],
+      expectationIds: item.expectationIds ?? [],
     })),
   );
   function change(key: string, values: Partial<Item>) {
@@ -40,11 +54,13 @@ export function EvidenceEditor({
   function submit(event: FormEvent) {
     event.preventDefault();
     void save(
-      items.map(({ id, title, kind, content }) => ({
+      items.map(({ id, title, kind, content, objectiveIds, expectationIds }) => ({
         ...(id ? { id } : {}),
         title,
         kind,
         content,
+        objectiveIds,
+        expectationIds,
       })),
     );
   }
@@ -97,6 +113,47 @@ export function EvidenceEditor({
                 onChange={(event) => change(item.key, { content: event.target.value })}
               />
             )}
+            {(objectives.length > 0 || expectations.length > 0) && (
+              <fieldset>
+                <legend>What does this evidence support?</legend>
+                <p className="muted">
+                  Select the objectives and expectations addressed by this item. These links
+                  describe coverage; the Reviewer approves the milestone submission.
+                </p>
+                {objectives.map((o) => (
+                  <label className="coverage-choice" key={o.id}>
+                    <input
+                      type="checkbox"
+                      checked={item.objectiveIds.includes(o.id)}
+                      onChange={(event) =>
+                        change(item.key, {
+                          objectiveIds: event.target.checked
+                            ? [...item.objectiveIds, o.id]
+                            : item.objectiveIds.filter((id) => id !== o.id),
+                        })
+                      }
+                    />
+                    Objective: {o.title}
+                  </label>
+                ))}
+                {expectations.map((r) => (
+                  <label className="coverage-choice" key={r.id}>
+                    <input
+                      type="checkbox"
+                      checked={item.expectationIds.includes(r.id)}
+                      onChange={(event) =>
+                        change(item.key, {
+                          expectationIds: event.target.checked
+                            ? [...item.expectationIds, r.id]
+                            : item.expectationIds.filter((id) => id !== r.id),
+                        })
+                      }
+                    />
+                    Expected: {r.title} · {r.required ? 'Required' : 'Optional'}
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <div className="form-actions">
               <button
                 type="button"
@@ -136,7 +193,14 @@ export function EvidenceEditor({
               onDirty();
               setItems((current) => [
                 ...current,
-                { key: crypto.randomUUID(), title: '', kind: 'TEXT', content: '' },
+                {
+                  key: crypto.randomUUID(),
+                  title: '',
+                  kind: 'TEXT',
+                  content: '',
+                  objectiveIds: [],
+                  expectationIds: [],
+                },
               ]);
             }}
           >

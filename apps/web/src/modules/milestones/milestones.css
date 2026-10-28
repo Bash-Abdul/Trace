@@ -29,3 +29,113 @@
   display: block;
   margin-top: 0.5rem;
 }
+.feedback-composer {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.feedback-composer > label {
+  display: block;
+  margin-block: 14px;
+}
+.feedback-composer .feedback-flag {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.feedback-flag input {
+  width: auto;
+  margin: 0;
+}
+.feedback-composer .text-button {
+  margin-left: 14px;
+}
+.reply-form > label {
+  display: block;
+  margin-block: 12px;
+}
+.milestone-thread .feedback-heading h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.thread-comment {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+.thread-opening {
+  margin-top: 20px;
+}
+.thread-comment > .avatar {
+  flex-shrink: 0;
+}
+.thread-comment-content {
+  min-width: 0;
+  flex: 1;
+}
+.thread-byline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px 10px;
+}
+.thread-byline strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.thread-byline span,
+.thread-comment time {
+  font-size: 11px;
+  color: #6c785f;
+}
+.thread-comment time {
+  display: block;
+  margin-top: 4px;
+}
+.thread-comment p {
+  margin: 10px 0 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.thread-reply-count {
+  margin: 18px 0;
+  color: #6c785f;
+  font-size: 12px;
+}
+.thread-reply-count > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.thread-replies {
+  list-style: none;
+  padding: 0 0 0 22px;
+  margin: 0 0 20px 13px;
+  border-left: 2px solid #e3e9dc;
+}
+.thread-replies > li {
+  position: relative;
+  padding: 14px 0;
+}
+.thread-connector {
+  position: absolute;
+  left: -23px;
+  top: 16px;
+  color: #899c79;
+  background: white;
+}
+.thread-replies > li + li {
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 600px) {
+  .thread-replies {
+    margin-left: 5px;
+    padding-left: 15px;
+  }
+  .thread-connector {
+    left: -16px;
+  }
+  .thread-comment {
+    gap: 8px;
+  }
+}

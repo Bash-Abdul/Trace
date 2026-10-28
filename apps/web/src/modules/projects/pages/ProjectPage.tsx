@@ -60,7 +60,7 @@ export function ProjectPage() {
             <span>Your role: {persona === 'author' ? 'Author' : 'Main Reviewer'}</span>
           </div>
         </div>
-        <Link className="button secondary" to={`/projects/${project.id}/portfolio`}>
+        <Link className="button secondary" to={`/demo/projects/${project.id}/portfolio`}>
           Process portfolio
           <ArrowUpRight size={16} />
         </Link>

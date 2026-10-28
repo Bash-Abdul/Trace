@@ -18,8 +18,8 @@ export function SettingsPage() {
         <Monitor size={24} />
         <h2>Local, fictional, yours to explore.</h2>
         <p>
-          This prototype uses dummy data stored in this browser. The Author / Reviewer selector lets
-          you explore both sides of a project.
+          This prototype uses dummy data stored in this browser. Sample pages illustrate project
+          authoring and review.
         </p>
         <p>
           {storageAvailable

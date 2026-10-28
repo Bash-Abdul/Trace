@@ -29,7 +29,7 @@ export function ProjectCard({ project }: { project: Project }) {
           {state}
         </Badge>
         <Link
-          to={`/projects/${project.id}`}
+          to={`/demo/projects/${project.id}`}
           className="icon-button card-arrow"
           aria-label={`Open ${project.title}`}
         >
@@ -38,7 +38,7 @@ export function ProjectCard({ project }: { project: Project }) {
       </div>
       <p className="eyebrow">{project.category}</p>
       <h3>
-        <Link to={`/projects/${project.id}`}>{project.title}</Link>
+        <Link to={`/demo/projects/${project.id}`}>{project.title}</Link>
       </h3>
       <p className="project-description">{project.description}</p>
       <MilestoneProgress milestones={project.milestones} />
@@ -53,7 +53,7 @@ export function ProjectCard({ project }: { project: Project }) {
         </span>
       </div>
       {feedback > 0 && (
-        <Link className="card-feedback" to={`/projects/${project.id}?tab=feedback`}>
+        <Link className="card-feedback" to={`/demo/projects/${project.id}?tab=feedback`}>
           <span className="tiny-dot" />
           {feedback} feedback thread needs your attention <ArrowUpRight size={14} />
         </Link>

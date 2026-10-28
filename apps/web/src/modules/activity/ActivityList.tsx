@@ -15,7 +15,7 @@ export function ActivityList({ projects }: { projects: Project[] }) {
             <p>
               <strong>{row.actor}</strong> {row.action}
             </p>
-            <Link to={`/projects/${row.project.id}`}>{row.project.title}</Link>
+            <Link to={`/demo/projects/${row.project.id}`}>{row.project.title}</Link>
             <span className="timeline-detail">{row.detail}</span>
           </div>
           <time>{formatDate(row.date)}</time>

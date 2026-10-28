@@ -141,6 +141,84 @@ async function submitted() {
 }
 
 describe('milestone submissions, reviews and feedback', () => {
+  it('returns live card and detail progress without exposing another project', async () => {
+    const progressSchema = z.object({
+      milestones: z.array(
+        z.object({ id: z.string(), state: z.string(), evidence_count: z.number() }),
+      ),
+      unresolved_feedback: z.number(),
+      blocking_feedback: z.number(),
+      members: z.array(z.object({ user_id: z.string() })),
+    });
+    async function progress() {
+      const detail = await request(app)
+        .get(`/api/v1/projects/${projectId}`)
+        .set('Cookie', lead.cookie);
+      expect(detail.status).toBe(200);
+      const value = z.object({ progress: progressSchema }).parse(detail.body).progress;
+      const list = await request(app).get('/api/v1/projects').set('Cookie', lead.cookie);
+      const listed = z
+        .object({ projects: z.array(z.object({ id: z.string(), progress: progressSchema })) })
+        .parse(list.body);
+      expect(listed.projects.find((p) => p.id === projectId)?.progress).toEqual(value);
+      return value;
+    }
+    const initial = await progress();
+    expect(initial.milestones).toEqual([
+      { id: milestoneId, state: 'NOT_STARTED', evidence_count: 0 },
+      { id: otherMilestoneId, state: 'NOT_STARTED', evidence_count: 0 },
+    ]);
+    expect(initial.members.map((m) => m.user_id)).toContain(reviewer.id);
+    const submittedWork = await submitted();
+    const version = submittedWork.submissions[0]!;
+    expect(
+      (
+        await mutation(reviewer, `/submissions/${version.id}/feedback`, {
+          body: 'Explain the sample.',
+          blocking: true,
+        })
+      ).status,
+    ).toBe(201);
+    expect(await progress()).toMatchObject({
+      milestones: [
+        { id: milestoneId, state: 'AWAITING_REVIEW', evidence_count: 1 },
+        { id: otherMilestoneId, state: 'NOT_STARTED', evidence_count: 0 },
+      ],
+      unresolved_feedback: 1,
+      blocking_feedback: 1,
+    });
+    let current = await read();
+    expect(
+      (
+        await mutation(reviewer, `/feedback/${current.feedback[0]!.id}`, {
+          version: current.feedback[0]!.version,
+          action: 'RESOLVE',
+          body: 'Clarified.',
+        })
+      ).status,
+    ).toBe(200);
+    current = await read();
+    expect(
+      (
+        await mutation(reviewer, `/submissions/${version.id}/decision`, {
+          version: current.version,
+          decision: 'APPROVE',
+          feedback: '',
+        })
+      ).status,
+    ).toBe(200);
+    const approved = await progress();
+    expect(approved.milestones[0]?.state).toBe('APPROVED');
+    expect(approved.unresolved_feedback).toBe(0);
+    expect(approved.blocking_feedback).toBe(0);
+    expect(
+      (await request(app).get(`/api/v1/projects/${projectId}`).set('Cookie', outsider.cookie))
+        .status,
+    ).toBe(404);
+    const hidden = await request(app).get('/api/v1/projects').set('Cookie', outsider.cookie);
+    expect(z.object({ projects: z.array(z.unknown()) }).parse(hidden.body).projects).toEqual([]);
+  });
+
   it('preserves immutable versions through revision and enforces feedback ownership', async () => {
     let current = await submitted();
     const first = current.submissions[0]!;

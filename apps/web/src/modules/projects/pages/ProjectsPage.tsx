@@ -1,38 +1,48 @@
 import { useState } from 'react';
 import { Plus, Search, SlidersHorizontal } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useDemo } from '../../../app/providers/DemoProvider';
+import { useWorkspaceView } from '../../../app/providers/WorkspaceViewProvider';
+import { ProjectListState } from '../components/ProjectListState';
 import { EmptyState } from '../../../shared/ui/Primitives';
-import { ProjectCard } from '../components/ProjectCard';
+import { LiveProjectCard as ProjectCard } from '../components/LiveProjectCard';
 
-export function ProjectsPage() {
-  const { projects } = useDemo();
+export function ProjectsPage({ reviewing = false }: { reviewing?: boolean }) {
+  const { projects, error, retry, persona } = useWorkspaceView();
+  const reviewer = reviewing || persona === 'reviewer';
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('recent');
-  const visible = projects
+  const visible = (projects ?? [])
     .filter(
       (p) =>
+        (reviewer
+          ? ['MAIN_REVIEWER', 'DORMANT_REVIEWER'].includes(p.role)
+          : ['LEAD_AUTHOR', 'AUTHOR'].includes(p.role)) &&
         p.title.toLowerCase().includes(search.toLowerCase()) &&
         (filter === 'all' ||
           (filter === 'active'
-            ? p.state === 'active'
+            ? ['ACTIVE', 'FINAL_APPROVAL_PENDING'].includes(p.status)
             : filter === 'completed'
-              ? p.state === 'completed'
-              : ['setup', 'proposal-review'].includes(p.state))),
+              ? p.status === 'COMPLETED'
+              : filter === 'review'
+                ? p.status === 'PROPOSAL_IN_REVIEW'
+                : ['SETUP', 'PROPOSAL_CHANGES_REQUESTED'].includes(p.status))),
     )
-    .sort((a, b) =>
-      sort === 'title' ? a.title.localeCompare(b.title) : b.updated.localeCompare(a.updated),
-    );
+    .sort((a, b) => (sort === 'title' ? a.title.localeCompare(b.title) : 0));
   return (
     <>
       <div className="page-heading">
         <div>
           <p className="eyebrow">ROOM FOR YOUR IDEAS</p>
           <h1>
-            My projects<span className="heading-dot">.</span>
+            {reviewer ? 'Assigned projects' : 'My projects'}
+            <span className="heading-dot">.</span>
           </h1>
-          <p>Keep the work, the thinking, and the conversations together.</p>
+          <p>
+            {reviewer
+              ? 'Review submissions and follow up on feedback for your assigned projects.'
+              : 'Keep the work, the thinking, and the conversations together.'}
+          </p>
         </div>
         <Link className="button primary" to="/projects/new">
           <Plus size={17} />
@@ -41,7 +51,7 @@ export function ProjectsPage() {
       </div>
       <div className="project-toolbar">
         <div className="filter-tabs" aria-label="Filter projects">
-          {['all', 'active', 'setup', 'completed'].map((value) => (
+          {['all', 'active', 'setup', 'review', 'completed'].map((value) => (
             <button
               key={value}
               aria-pressed={filter === value}
@@ -54,7 +64,9 @@ export function ProjectsPage() {
                   ? 'Getting started'
                   : value === 'active'
                     ? 'In progress'
-                    : 'Completed'}
+                    : value === 'completed'
+                      ? 'Completed'
+                      : 'Proposal review'}
             </button>
           ))}
         </div>
@@ -78,7 +90,18 @@ export function ProjectsPage() {
           </label>
         </div>
       </div>
-      {visible.length > 0 ? (
+      {reviewing && (
+        <p>
+          Projects where you are the Main Reviewer. Open a project to review proposals, milestone
+          submissions and feedback.
+        </p>
+      )}
+      {projects && projects.length >= 100 && (
+        <p>Showing your 100 most recently updated projects.</p>
+      )}
+      {!projects || error ? (
+        <ProjectListState error={error} retry={retry} />
+      ) : visible.length > 0 ? (
         <div className="project-grid projects-full-grid">
           {visible.map((p) => (
             <ProjectCard project={p} key={p.id} />

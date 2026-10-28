@@ -1,6 +1,6 @@
+import { saveMappings } from '../evidence-coverage/coverage.repository.js';
 import type { PoolClient } from 'pg';
 import type { Database } from '../../config/db.js';
-import type { Role } from '../projects/projects.types.js';
 import type {
   Decision,
   Detail,
@@ -18,8 +18,9 @@ export async function milestone(
   milestoneId: string,
 ): Promise<Detail['milestone'] | null> {
   const result = await database.query<Detail['milestone']>(
-    `SELECT id, title, required FROM project_milestones
-     WHERE id = $1 AND project_id = $2`,
+    `SELECT m.id, m.title, m.required, m.archived_at, m.due_date::text AS "dueDate", p.timezone
+     FROM project_milestones m JOIN projects p ON p.id = m.project_id
+     WHERE m.id = $1 AND m.project_id = $2`,
     [milestoneId, projectId],
   );
   return result.rows[0] ?? null;
@@ -38,8 +39,10 @@ export async function state(
 
 export async function evidence(database: Database, milestoneId: string): Promise<Evidence[]> {
   const result = await database.query<Evidence>(
-    `SELECT id, title, kind, content, created_by, updated_by
-     FROM milestone_draft_evidence WHERE milestone_id = $1 ORDER BY position`,
+    `SELECT e.id, title, kind, content, created_by, updated_by,
+       ARRAY(SELECT objective_id FROM evidence_objectives o WHERE o.evidence_id = e.id ORDER BY objective_id) AS "objectiveIds",
+       ARRAY(SELECT expectation_id FROM evidence_expectations r WHERE r.evidence_id = e.id ORDER BY expectation_id) AS "expectationIds"
+     FROM milestone_draft_evidence e WHERE milestone_id = $1 ORDER BY position`,
     [milestoneId],
   );
   return result.rows;
@@ -72,6 +75,7 @@ export async function saveDraft(
        content = EXCLUDED.content, updated_by = EXCLUDED.updated_by`,
     [milestoneId, JSON.stringify(items)],
   );
+  await saveMappings(client, milestoneId, items);
 }
 
 export async function transition(
@@ -90,8 +94,9 @@ export async function transition(
 
 export async function versions(database: Database, milestoneId: string): Promise<Submission[]> {
   const result = await database.query<Submission>(
-    `SELECT id, number, evidence, submitted_by, submitted_at, decision, feedback, decided_by, decided_at
-     FROM milestone_submission_versions WHERE milestone_id = $1 ORDER BY number DESC`,
+    `SELECT v.id, number, evidence, submitted_by, submitted_at, decision, feedback, decided_by, decided_at, c.plan AS coverage
+     FROM milestone_submission_versions v LEFT JOIN milestone_submission_coverage c ON c.submission_id = v.id
+     WHERE milestone_id = $1 ORDER BY number DESC`,
     [milestoneId],
   );
   return result.rows;
@@ -200,22 +205,6 @@ export async function updateFeedback(
   return true;
 }
 
-export async function notify(
-  client: PoolClient,
-  projectId: string,
-  milestoneId: string,
-  actorId: string,
-  action: string,
-  roles: Role[],
-): Promise<void> {
-  await client.query(
-    `INSERT INTO project_notifications (project_id, milestone_id, recipient_id, action)
-     SELECT project_id, $2, user_id, $4 FROM project_memberships
-     WHERE project_id = $1 AND user_id <> $3 AND role = ANY($5::text[])`,
-    [projectId, milestoneId, actorId, action, roles],
-  );
-}
-
 export async function notifications(
   database: Database,
   projectId: string,
@@ -228,7 +217,7 @@ export async function notifications(
     created_at: Date;
   }>(
     `SELECT id, milestone_id, action, created_at FROM project_notifications
-     WHERE project_id = $1 AND recipient_id = $2 ORDER BY created_at DESC, id LIMIT 100`,
+     WHERE project_id = $1 AND recipient_id = $2 AND milestone_id IS NOT NULL ORDER BY created_at DESC, id LIMIT 100`,
     [projectId, userId],
   );
   return result.rows;

@@ -31,7 +31,7 @@ export function NewProjectPage() {
     addProject(project);
     setPersona('author');
     notify('Your demo project is ready. No invitation email was sent.');
-    navigate(`/projects/${project.id}`);
+    navigate(`/demo/projects/${project.id}`);
   }
   return (
     <>
