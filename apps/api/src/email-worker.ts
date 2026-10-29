@@ -1,35 +1,62 @@
 import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 
-import { closeDatabaseConnection, pool } from './config/db.js';
+import { env } from './config/index.js';
+import { runEmailWorkerLoop } from './modules/outbox/email-worker-loop.js';
 import { createOutboxWorkerRepository } from './modules/outbox/outbox-worker.repository.js';
 import { processNextEmail } from './modules/outbox/outbox-worker.js';
 import { createResendEmailProvider } from './modules/outbox/resend-email-provider.js';
 import { logger } from './utils/logger.js';
 
-// A bounded run for an external scheduler. No network sends occur on API startup.
 async function run(): Promise<void> {
-  let stopping = false;
-  process.once('SIGINT', () => {
-    stopping = true;
+  const provider = createResendEmailProvider(process.env);
+  // Worker-only limits: keep database stalls bounded without changing HTTP transactions.
+  const database = new pg.Pool({
+    connectionString: env.DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: 5000,
+    statement_timeout: 5000,
+    query_timeout: 10_000,
   });
-  process.once('SIGTERM', () => {
-    stopping = true;
-  });
+  database.on('error', () => logger.warn('Email worker idle database connection lost'));
+  const repository = createOutboxWorkerRepository(database);
+  const workerId = randomUUID();
+  const controller = new AbortController();
+  let deadline: NodeJS.Timeout | undefined;
+  const stop = () => {
+    if (controller.signal.aborted) return;
+    logger.info('Email worker stopping; finishing the current attempt');
+    controller.abort();
+    deadline = setTimeout(() => {
+      logger.error('Email worker shutdown deadline exceeded; unfinished leases will expire');
+      process.exit(1);
+    }, 45_000);
+    deadline.unref();
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  logger.info('Email worker started');
   try {
-    const provider = createResendEmailProvider(process.env);
-    const repository = createOutboxWorkerRepository(pool);
-    const workerId = randomUUID();
-    // Bounded housekeeping for expired rate-limit buckets, never account data.
-    await pool.query(`DELETE FROM auth_rate_limits WHERE key IN (
-      SELECT key FROM auth_rate_limits WHERE expires_at < now() ORDER BY expires_at LIMIT 1000
-    )`);
-    for (let count = 0; count < 100 && !stopping; count += 1) {
-      const outcome = await processNextEmail(repository, provider, workerId);
-      if (outcome === 'idle') break;
-      logger.info({ outcome }, 'Email outbox attempt finished');
-    }
+    await runEmailWorkerLoop({
+      signal: controller.signal,
+      processNext: () => processNextEmail(repository, provider, workerId),
+      cleanup: async () => {
+        await database.query(`DELETE FROM auth_rate_limits WHERE key IN (
+          SELECT key FROM auth_rate_limits WHERE expires_at < now() ORDER BY expires_at LIMIT 1000
+        )`);
+      },
+      report: (outcome, retryMs) => {
+        if (outcome === 'infrastructure-error')
+          logger.warn({ retryMs }, 'Email worker infrastructure failure; retrying');
+        else logger.info({ outcome }, 'Email outbox attempt finished');
+      },
+    });
   } finally {
-    await closeDatabaseConnection();
+    await database.end();
+    clearTimeout(deadline);
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+    logger.info('Email worker stopped');
   }
 }
 
