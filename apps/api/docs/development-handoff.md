@@ -643,3 +643,12 @@ membership changes. See the engineering plan for permissions and invariants.
 The web demo saves this choice and shows the lead role; real invitations, shared
 editing, and backend permissions remain to be implemented. Existing demo records
 default to Individual without resetting browser storage.
+
+## Persistent email worker checkpoint
+
+Email delivery now uses a continuously running PostgreSQL-outbox worker, with three-second idle
+polling, bounded infrastructure backoff and graceful signal draining. See [email-worker.md](./email-worker.md)
+for the Railway cron removal, independent start command and required 60-second platform drain time.
+No queue migration, production service change or real email send is performed by this code change.
+CI run 40717036521 failed at web formatting of `vercel.json`, before tests/audit; that JSON has been
+formatted without changing its deployment values.

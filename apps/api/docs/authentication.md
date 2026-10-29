@@ -11,9 +11,10 @@ session revocation. Web auth screens and protected account/session controls are 
 3. For live email, configure `RESEND_API_KEY`, `EMAIL_FROM`,
    `EMAIL_VERIFICATION_URL`, and `EMAIL_PASSWORD_RESET_URL`. Both URLs must be HTTPS
    frontend pages without query strings or fragments (explicit development mode also allows HTTP loopback hosts); the sender must be verified.
-4. Run `pnpm worker:email` to process up to 100 jobs, or invoke the same entry point
-   from an external scheduler. Compiled entry point: `node apps/api/dist/email-worker.js`.
-   No scheduler is provisioned by this change; the API never sends email on startup.
+4. Run `pnpm worker:email` as a persistent process, separate from the API.
+   Compiled entry point: `node apps/api/dist/email-worker.js`. Idle polling runs every three
+   seconds; no cron schedule is needed. See [worker deployment and shutdown](./email-worker.md).
+   The API never sends email on startup.
 
 No secrets were populated and no real emails were sent during implementation.
 The web frontend implements `/verify-email` and `/reset-password`. Configure their deployed HTTPS URLs before enabling delivery. See [web setup](../../web/README.md) for local proxy configuration.
@@ -95,7 +96,7 @@ implemented. Do not replace the encryption key casually.
 Persistent fixed-window limits allow 100 mutating auth requests per network and
 10 per email/endpoint per 15 minutes. Email/network bucket keys are HMAC-derived.
 Throttling is temporary, with no permanent account lockout. Expired bucket cleanup
-is bounded to 1,000 rows per worker invocation. Express trust proxy remains off;
+is bounded to 1,000 rows per five-minute housekeeping pass. Express trust proxy remains off;
 configure only explicitly trusted proxies before deployment so client IPs are
 accurate and cannot be forged. Infrastructure-level abuse controls remain useful.
 

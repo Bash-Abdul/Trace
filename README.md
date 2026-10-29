@@ -165,7 +165,7 @@ Run commands from the repository root.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm worker:email` | Process up to 100 queued authentication emails (requires email configuration) |
+| `pnpm worker:email` | Run the persistent authentication email worker (requires email configuration) |
 | `pnpm dev:api` | Start the API and restart it when source files change |
 | `pnpm format` | Apply Prettier formatting |
 | `pnpm format:check` | Check formatting without changing files |
