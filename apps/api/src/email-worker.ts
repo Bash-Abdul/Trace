@@ -5,7 +5,10 @@ import { env } from './config/index.js';
 import { runEmailWorkerLoop } from './modules/outbox/email-worker-loop.js';
 import { createOutboxWorkerRepository } from './modules/outbox/outbox-worker.repository.js';
 import { processNextEmail } from './modules/outbox/outbox-worker.js';
-import { createResendEmailProvider } from './modules/outbox/resend-email-provider.js';
+import {
+  createResendEmailProvider,
+  EmailConfigurationError,
+} from './modules/outbox/resend-email-provider.js';
 import { logger } from './utils/logger.js';
 
 async function run(): Promise<void> {
@@ -60,7 +63,14 @@ async function run(): Promise<void> {
   }
 }
 
-void run().catch(() => {
-  logger.error('Email worker failed; check database connectivity and email configuration');
+void run().catch((error: unknown) => {
+  if (error instanceof EmailConfigurationError) {
+    logger.error(
+      { fields: error.fields },
+      'Email worker configuration invalid: API key must be present; EMAIL_FROM must be a plain email address; email URLs must be HTTPS without credentials, query or fragment',
+    );
+  } else {
+    logger.error('Email worker failed unexpectedly; no sensitive error details were logged');
+  }
   process.exitCode = 1;
 });

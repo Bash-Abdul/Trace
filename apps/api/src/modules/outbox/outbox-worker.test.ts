@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { encryptEmailVerificationPayload } from './outbox-payload.js';
 import { processNextEmail } from './outbox-worker.js';
-import { createResendEmailProvider } from './resend-email-provider.js';
+import { createResendEmailProvider, EmailConfigurationError } from './resend-email-provider.js';
 
 const payload = { recipientEmail: 'author@example.com', verificationToken: 'secret-token' };
 
@@ -146,8 +146,30 @@ describe('Resend adapter', () => {
       }),
     ).toThrow();
   });
+  it.each(['not-a-url', '', 'http://localhost:5173/reset-password'])(
+    'identifies invalid configuration fields without exposing values: %s',
+    (url) => {
+      try {
+        createResendEmailProvider({
+          ...config,
+          RESEND_API_KEY: 'private-api-key',
+          EMAIL_FROM: 'Trace <private@example.com>',
+          EMAIL_PASSWORD_RESET_URL: url,
+        });
+        expect.fail('Expected configuration validation to fail');
+      } catch (error) {
+        expect(error).toBeInstanceOf(EmailConfigurationError);
+        expect((error as EmailConfigurationError).fields).toEqual([
+          'EMAIL_FROM',
+          'EMAIL_PASSWORD_RESET_URL',
+        ]);
+        expect(JSON.stringify(error)).not.toContain('private');
+        expect((error as Error).message).not.toContain(url || 'private-api-key');
+      }
+    },
+  );
   it('rejects missing credentials and unsafe verification URLs', () => {
-    expect(() => createResendEmailProvider({})).toThrow('Set RESEND_API_KEY');
+    expect(() => createResendEmailProvider({})).toThrow('RESEND_API_KEY');
     expect(() =>
       createResendEmailProvider({ ...config, EMAIL_VERIFICATION_URL: 'http://example.com' }),
     ).toThrow();

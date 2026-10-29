@@ -7,6 +7,7 @@ const frontendUrl = z
   .string()
   .url()
   .refine((value) => {
+    if (!URL.canParse(value)) return false;
     const url = new URL(value);
     const localHttp =
       url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
@@ -28,7 +29,11 @@ const emailConfiguration = z
   })
   .superRefine((config, context) => {
     for (const field of ['EMAIL_VERIFICATION_URL', 'EMAIL_PASSWORD_RESET_URL'] as const) {
-      if (config.NODE_ENV !== 'development' && new URL(config[field]).protocol !== 'https:') {
+      if (
+        URL.canParse(config[field]) &&
+        config.NODE_ENV !== 'development' &&
+        new URL(config[field]).protocol !== 'https:'
+      ) {
         context.addIssue({
           code: 'custom',
           path: [field],
@@ -38,6 +43,12 @@ const emailConfiguration = z
     }
   });
 
+export class EmailConfigurationError extends Error {
+  constructor(readonly fields: string[]) {
+    super(`Set valid email configuration for: ${fields.join(', ')}`);
+  }
+}
+
 export function createResendEmailProvider(
   input: NodeJS.ProcessEnv,
   sendRequest: typeof fetch = fetch,
@@ -45,9 +56,9 @@ export function createResendEmailProvider(
   const result = emailConfiguration.safeParse(input);
   if (!result.success) {
     // Do not include configuration values (especially credentials) in errors.
-    throw new Error(
-      'Set RESEND_API_KEY, EMAIL_FROM, and valid EMAIL_VERIFICATION_URL / EMAIL_PASSWORD_RESET_URL (HTTPS, or localhost HTTP in development)',
-    );
+    throw new EmailConfigurationError([
+      ...new Set(result.error.issues.map((issue) => String(issue.path[0]))),
+    ]);
   }
   const config = result.data;
   async function send(
